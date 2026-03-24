@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --qf-bg: #f6f8fc;
+  --qf-surface: #ffffff;
+  --qf-text: #0f172a;
+  --qf-muted: #64748b;
+  --qf-primary: #1752d1;
+  --qf-primary-2: #2f76ff;
+  --qf-accent: #00a6a6;
+  --qf-border: #dbe4f0;
+  --qf-shadow: 0 14px 40px rgba(10, 30, 80, 0.08);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  color: var(--qf-text);
+  background: var(--qf-bg);
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(47, 118, 255, 0.18), transparent 35%),
+    radial-gradient(circle at 90% 0%, rgba(0, 166, 166, 0.15), transparent 30%),
+    var(--qf-bg);
+}
+
+h1, h2, h3 {
+  font-family: "Sora", "Manrope", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.qf-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(219, 228, 240, 0.9);
+}
+
+.qf-card {
+  background: var(--qf-surface);
+  border: 1px solid var(--qf-border);
+  box-shadow: var(--qf-shadow);
+  border-radius: 18px;
+}
+
+/* Fix Leaflet map icons */
+.leaflet-default-icon-path {
+  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
+}
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Smooth page transitions */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove input focus outline on mobile */
+input, textarea, select, button {
+  -webkit-appearance: none;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

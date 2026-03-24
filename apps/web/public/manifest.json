@@ -1,0 +1,35 @@
+{
+  "name": "QFlow — Find Clinics Near You",
+  "short_name": "QFlow",
+  "description": "Find dental and medical clinics in Chandigarh & Mohali. Book appointments, skip the waiting room.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' font-size='70' x='15'>🦷</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='.9em' font-size='70' x='15'>🦷</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["health", "medical", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Find Clinic",
+      "url": "/",
+      "description": "Find clinics near you"
+    },
+    {
+      "name": "My Bookings",
+      "url": "/patient/dashboard",
+      "description": "View your appointments"
+    }
+  ]
+}
