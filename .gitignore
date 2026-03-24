@@ -12,6 +12,7 @@ node_modules/
 
 # Local WhatsApp Web.js auth/session data
 apps/api/.wwebjs_auth/
+apps/api/.wwebjs_cache/
 
 # Build outputs
 dist/
