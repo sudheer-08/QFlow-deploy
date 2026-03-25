@@ -1,0 +1,197 @@
+QFLOW FREE DEPLOYMENT (STEP-BY-STEP)
+====================================
+
+Goal
+----
+Deploy this project with free services:
+1) Database: Supabase (free)
+2) Redis: Upstash Redis (free)
+3) Backend API: Koyeb (free)
+4) Frontend: Vercel (free)
+
+Important Notes Before You Start
+--------------------------------
+1) WhatsApp Web.js (QR session) is not stable for cloud hosting because it needs a persistent browser session.
+2) The app will still run without WhatsApp; only WhatsApp messaging features may be limited.
+3) Use Node 18+ and Git installed locally.
+4) For Koyeb deployment, disable WhatsApp Web.js by setting WHATSAPP_ENABLED=false.
+
+
+STEP 1 - Push Code to GitHub
+----------------------------
+1) Open terminal in project root.
+2) Run:
+
+	git init
+	git add .
+	git commit -m "Initial commit"
+	git branch -M main
+	git remote add origin https://github.com/<YOUR_USERNAME>/qflow.git
+	git push -u origin main
+
+3) Confirm repository is visible on GitHub.
+
+
+STEP 2 - Create Supabase Project (Free PostgreSQL)
+--------------------------------------------------
+1) Go to https://supabase.com and create a new project.
+2) Open SQL Editor.
+3) Copy all SQL from project file supabase_schema.sql.
+4) Paste and run SQL in Supabase SQL Editor.
+5) In Supabase Project Settings > API, copy:
+	- Project URL
+	- anon key
+	- service_role key
+
+
+STEP 3 - Create Free Redis on Upstash
+-------------------------------------
+1) Go to https://upstash.com and create a free Redis database.
+2) Copy the Redis connection URL (starts with rediss:// or redis://).
+3) Keep it ready as REDIS_URL for backend environment variables.
+
+
+STEP 4 - Generate JWT Secrets
+-----------------------------
+Run these commands locally and save outputs:
+
+	node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+	node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+Use first value for JWT_ACCESS_SECRET and second for JWT_REFRESH_SECRET.
+
+
+STEP 5 - Deploy Backend on Koyeb (Free)
+---------------------------------------
+1) Go to https://www.koyeb.com and sign in with GitHub.
+2) Create App > From GitHub repository.
+3) Select this repo.
+4) Configure service:
+	- Service type: Web Service
+	- Root directory: apps/api
+	- Build command: npm install
+	- Run command: npm start
+	- Port: 5000
+
+5) Add these environment variables in Koyeb:
+
+	NODE_ENV=production
+	PORT=5000
+	WHATSAPP_ENABLED=false
+	SUPABASE_URL=<your-supabase-url>
+	SUPABASE_SERVICE_KEY=<your-supabase-service-role-key>
+	JWT_ACCESS_SECRET=<generated-secret-1>
+	JWT_REFRESH_SECRET=<generated-secret-2>
+	JWT_ACCESS_EXPIRES_IN=15m
+	JWT_REFRESH_EXPIRES_IN=7d
+	GROQ_API_KEY=<your-groq-key>
+	REDIS_URL=<your-upstash-redis-url>
+	FRONTEND_URL=https://<your-vercel-domain>
+	CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>
+	CLINIC_TIMEZONE=Asia/Kolkata
+	AUTH_RATE_LIMIT_PER_15_MIN=25
+	API_RATE_LIMIT_PER_MIN=240
+	PUBLIC_RATE_LIMIT_PER_MIN=60
+
+COPY-PASTE BLOCK FOR KOYEB (WHATSAPP DISABLED)
+-----------------------------------------------
+NODE_ENV=production
+PORT=5000
+WHATSAPP_ENABLED=false
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_SERVICE_KEY=<your-supabase-service-role-key>
+JWT_ACCESS_SECRET=<generated-secret-1>
+JWT_REFRESH_SECRET=<generated-secret-2>
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+GROQ_API_KEY=<your-groq-key>
+REDIS_URL=<your-upstash-redis-url>
+FRONTEND_URL=https://<your-vercel-domain>
+CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>
+CLINIC_TIMEZONE=Asia/Kolkata
+AUTH_RATE_LIMIT_PER_15_MIN=25
+API_RATE_LIMIT_PER_MIN=240
+PUBLIC_RATE_LIMIT_PER_MIN=60
+
+6) Deploy service.
+7) After deployment, test health endpoint:
+	https://<your-koyeb-service-domain>/health
+	Expected response includes status ok.
+
+
+STEP 6 - Deploy Frontend on Vercel (Free)
+-----------------------------------------
+1) Go to https://vercel.com and import your GitHub repo.
+2) Set project root directory to apps/web.
+3) Build settings:
+	- Framework: Vite
+	- Build command: npm run build
+	- Output directory: dist
+
+4) Add environment variables in Vercel:
+
+	VITE_API_URL=https://<your-koyeb-service-domain>/api
+	VITE_SOCKET_URL=https://<your-koyeb-service-domain>
+	VITE_SUPABASE_URL=<your-supabase-url>
+	VITE_SUPABASE_ANON_KEY=<your-supabase-anon-key>
+
+5) Deploy.
+6) Copy your Vercel domain (example: https://qflow-app.vercel.app).
+
+
+STEP 7 - Final CORS Sync (Very Important)
+-----------------------------------------
+1) Go back to Koyeb backend env vars.
+2) Set:
+	FRONTEND_URL=https://<your-vercel-domain>
+	CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>
+3) Redeploy backend service.
+
+
+STEP 8 - Verify Production Endpoints
+------------------------------------
+1) Open frontend URL from Vercel.
+2) Open backend health URL:
+	https://<your-koyeb-service-domain>/health
+3) Test core flows:
+	- Clinic registration
+	- Staff login
+	- Patient booking
+	- Queue updates
+
+
+STEP 9 - Optional Custom Domain (Free if you already own domain)
+----------------------------------------------------------------
+1) Add domain in Vercel project settings.
+2) Update DNS records as instructed by Vercel.
+3) Update Koyeb CORS vars to include custom domain.
+
+
+STEP 10 - Troubleshooting
+-------------------------
+If frontend shows CORS error:
+1) Confirm FRONTEND_URL and CORS_ALLOWED_ORIGINS exactly match Vercel URL.
+2) Ensure protocol is https and no trailing slash mismatch.
+
+If backend fails at startup:
+1) Verify SUPABASE_URL and SUPABASE_SERVICE_KEY are valid.
+2) Verify JWT secrets are non-empty.
+3) Verify REDIS_URL is valid.
+
+If reminders are not sent:
+1) Check REDIS_URL and Upstash status.
+2) Inspect backend logs for Redis/Bull warnings.
+
+If WhatsApp messages do not work in cloud:
+1) This is expected with whatsapp-web.js on many free cloud hosts.
+2) Keep app running without WhatsApp or later migrate to official WhatsApp Cloud API.
+
+
+FREE STACK SUMMARY
+------------------
+1) Supabase free tier for database and auth data.
+2) Upstash free tier for Redis/Bull queues.
+3) Koyeb free tier for Node.js API hosting.
+4) Vercel free tier for React/Vite frontend hosting.
+
+Total monthly cost: 0 (within free limits).

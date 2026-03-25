@@ -192,10 +192,16 @@ try {
   console.warn('⚠️ Reminder jobs could not start (Redis may not be running):', err.message);
 }
 
-// Initialize WhatsApp — scan QR in console on first run
-const whatsappClient = initWhatsApp();
-global.whatsappClient = whatsappClient;
-console.log('✅ WhatsApp Web.js initializing...');
+// Initialize WhatsApp only when enabled (recommended OFF for free cloud hosts)
+const isWhatsAppEnabled = process.env.WHATSAPP_ENABLED !== 'false';
+if (isWhatsAppEnabled) {
+  const whatsappClient = initWhatsApp();
+  global.whatsappClient = whatsappClient;
+  console.log('✅ WhatsApp Web.js initializing...');
+} else {
+  global.whatsappClient = null;
+  console.log('ℹ️ WhatsApp Web.js disabled via WHATSAPP_ENABLED=false');
+}
 
 const PORT = Number(process.env.PORT || 5000);
 const MAX_PORT_SCAN = Number(process.env.PORT_SCAN_LIMIT || 20);

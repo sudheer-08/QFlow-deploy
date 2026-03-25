@@ -29,7 +29,14 @@ morgan.token('request-id', (req) => req.id || '?');
 /**
  * Custom Morgan token for response time with units
  */
-morgan.token('response-time-ms', (req, res) => `${res.responseTime.toFixed(0)}ms`);
+const morganTokenResponseTime = morgan['response-time'];
+morgan.token('response-time-ms', (req, res) => {
+  const value = typeof morganTokenResponseTime === 'function'
+    ? morganTokenResponseTime(req, res, 0)
+    : undefined;
+
+  return value ? `${value}ms` : '-';
+});
 
 /**
  * Morgan format for development: More readable, includes colors

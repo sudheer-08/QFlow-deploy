@@ -1,14 +1,50 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import { useAuthStore } from '../store/authStore'
 
 const STEPS = ['Clinic Info', 'Location', 'Doctors', 'Account']
+const DEFAULT_MAP_CENTER = [30.7333, 76.7794]
+
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
+})
+
+function LocationSelector({ selectedPosition, onSelect }) {
+  useMapEvents({
+    click: (event) => {
+      const { lat, lng } = event.latlng
+      onSelect(lat, lng)
+    }
+  })
+
+  if (!selectedPosition) return null
+  return <Marker position={selectedPosition} />
+}
+
+function FocusSelectedLocation({ selectedPosition }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (selectedPosition) {
+      map.setView(selectedPosition, 16, { animate: true })
+    }
+  }, [map, selectedPosition])
+
+  return null
+}
 
 export default function ClinicRegisterPage() {
   const navigate = useNavigate()
   const { login } = useAuthStore()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationError, setLocationError] = useState('')
   const [error, setError] = useState('')
 
   const [clinic, setClinic] = useState({
@@ -33,6 +69,46 @@ export default function ClinicRegisterPage() {
   })
 
   const updateClinic = (field, value) => setClinic(prev => ({ ...prev, [field]: value }))
+
+  const parsedLat = parseFloat(clinic.lat)
+  const parsedLng = parseFloat(clinic.lng)
+  const hasValidCoordinates = Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
+  const selectedPosition = hasValidCoordinates ? [parsedLat, parsedLng] : null
+  const mapCenter = selectedPosition || DEFAULT_MAP_CENTER
+
+  const setCoordinates = (lat, lng) => {
+    updateClinic('lat', lat.toFixed(6))
+    updateClinic('lng', lng.toFixed(6))
+    setLocationError('')
+  }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Location is not supported on this device.')
+      return
+    }
+
+    setLocationLoading(true)
+    setLocationError('')
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates(position.coords.latitude, position.coords.longitude)
+        setLocationLoading(false)
+      },
+      () => {
+        setLocationError('Could not get current location. Please allow location access.')
+        setLocationLoading(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  useEffect(() => {
+    if (step !== 1) {
+      setLocationError('')
+    }
+  }, [step])
 
   const updateDoctor = (idx, field, value) => {
     const updated = [...clinic.doctors]
@@ -260,8 +336,44 @@ export default function ClinicRegisterPage() {
                 </div>
               </div>
 
+              <button
+                onClick={useCurrentLocation}
+                disabled={locationLoading}
+                style={{
+                  background: locationLoading ? '#e2e8f0' : '#eff6ff',
+                  color: locationLoading ? '#94a3b8' : '#1d4ed8',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 10,
+                  padding: '11px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: locationLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {locationLoading ? '⏳ Detecting your location...' : '📍 Use Current Location'}
+              </button>
+
+              {locationError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 10, fontSize: 12, color: '#b91c1c' }}>
+                  {locationError}
+                </div>
+              )}
+
+              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                  Tap on the map to pin your clinic location
+                </div>
+                <div style={{ height: 260 }}>
+                  <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <FocusSelectedLocation selectedPosition={selectedPosition} />
+                    <LocationSelector selectedPosition={selectedPosition} onSelect={setCoordinates} />
+                  </MapContainer>
+                </div>
+              </div>
+
               <div style={{ background: '#eff6ff', borderRadius: 10, padding: 12, fontSize: 12, color: '#1d4ed8' }}>
-                💡 To get coordinates: Go to Google Maps → right click your clinic location → copy the numbers shown
+                💡 Tip: Use current location or tap on map for instant coordinates. You can still edit values manually.
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
