@@ -256,6 +256,109 @@ create table waitlist (
 create index idx_waitlist_tenant_status on waitlist(tenant_id, status, created_at);
 
 -- ============================================================
+-- INPUT VALIDATION GUARDRAILS (DB-LEVEL)
+-- ============================================================
+
+-- Normalize common user-entered fields before validation.
+create or replace function normalize_tenant_fields()
+returns trigger as $$
+begin
+  if new.subdomain is not null then
+    new.subdomain := lower(trim(new.subdomain));
+  end if;
+
+  if new.phone is not null then
+    new.phone := regexp_replace(trim(new.phone), '[\s\-\(\)]', '', 'g');
+    if new.phone = '' then
+      new.phone := null;
+    end if;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_normalize_tenant_fields on tenants;
+create trigger trg_normalize_tenant_fields
+before insert or update on tenants
+for each row execute function normalize_tenant_fields();
+
+create or replace function normalize_user_fields()
+returns trigger as $$
+begin
+  if new.email is not null then
+    new.email := lower(trim(new.email));
+    if new.email = '' then
+      new.email := null;
+    end if;
+  end if;
+
+  if new.phone is not null then
+    new.phone := regexp_replace(trim(new.phone), '[\s\-\(\)]', '', 'g');
+    if new.phone = '' then
+      new.phone := null;
+    end if;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_normalize_user_fields on users;
+create trigger trg_normalize_user_fields
+before insert or update on users
+for each row execute function normalize_user_fields();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'tenants_subdomain_format_chk'
+  ) then
+    alter table tenants
+      add constraint tenants_subdomain_format_chk
+      check (subdomain ~ '^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$');
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'tenants_phone_format_chk'
+  ) then
+    alter table tenants
+      add constraint tenants_phone_format_chk
+      check (phone is null or phone ~ '^\+?[0-9]{10,15}$');
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'users_email_format_chk'
+  ) then
+    alter table users
+      add constraint users_email_format_chk
+      check (
+        email is null
+        or email ~ '^[A-Za-z0-9.!#$%&''*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$'
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'users_phone_format_chk'
+  ) then
+    alter table users
+      add constraint users_phone_format_chk
+      check (phone is null or phone ~ '^\+?[0-9]{10,15}$');
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'users_password_hash_format_chk'
+  ) then
+    alter table users
+      add constraint users_password_hash_format_chk
+      check (
+        password_hash is null
+        or password_hash ~ '^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$'
+      );
+  end if;
+end $$;
+
+-- ============================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================================
 

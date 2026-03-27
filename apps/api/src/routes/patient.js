@@ -2,7 +2,16 @@ const router = require('express').Router();
 const supabase = require('../models/supabase');
 const { authenticate } = require('../middleware/auth');
 const { getDayBounds, getLocalDateString } = require('../utils/date');
-const { assert, isEmail, isNonEmptyString, isPhone } = require('../utils/validation');
+const {
+  assert,
+  isEmail,
+  isNonEmptyString,
+  isPhone,
+  isStrongPassword,
+  isIsoDate,
+  normalizeEmail,
+  normalizePhone
+} = require('../utils/validation');
 
 // ─── GET /api/patient/clinics ─────────────────────────
 // Public — get all active clinics with live queue counts
@@ -142,19 +151,25 @@ router.post('/register', async (req, res) => {
     const jwt = require('jsonwebtoken');
     const { v4: uuidv4 } = require('uuid');
     const { name, phone, email, password, gender, dateOfBirth } = req.body;
+    const cleanName = typeof name === 'string' ? name.trim() : name;
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = phone ? normalizePhone(phone) : null;
 
-    assert(isNonEmptyString(name, 100), 'Name is required');
-    assert(isEmail(email), 'Valid email is required');
-    assert(isNonEmptyString(password, 128) && password.length >= 8, 'Password must be at least 8 characters');
+    assert(isNonEmptyString(cleanName, 100), 'Name is required');
+    assert(isEmail(cleanEmail), 'Valid email is required');
+    assert(isStrongPassword(password), 'Password must be 8+ chars with uppercase, lowercase, number, and special character');
     if (phone) {
-      assert(isPhone(phone), 'Phone number is invalid');
+      assert(isPhone(cleanPhone), 'Phone number is invalid');
+    }
+    if (dateOfBirth) {
+      assert(isIsoDate(dateOfBirth), 'dateOfBirth must be in YYYY-MM-DD format');
     }
 
     // Check if email already exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
-      .eq('email', email)
+      .eq('email', cleanEmail)
       .single();
 
     if (existing) return res.status(400).json({ error: 'Email already registered' });
@@ -166,9 +181,9 @@ router.post('/register', async (req, res) => {
       .insert({
         id: uuidv4(),
         tenant_id: null,  // patients don't belong to a specific clinic
-        name,
-        phone,
-        email,
+        name: cleanName,
+        phone: cleanPhone,
+        email: cleanEmail,
         password_hash: passwordHash,
         role: 'patient',
         gender,
@@ -206,14 +221,42 @@ router.post('/register', async (req, res) => {
 router.patch('/profile', authenticate, async (req, res) => {
   try {
     const { name, phone, gender, dateOfBirth, bloodGroup, allergies, emergencyContact } = req.body;
+    const updates = {};
+
+    if (name !== undefined) {
+      assert(isNonEmptyString(name, 100), 'Name is required');
+      updates.name = name.trim();
+    }
+
+    if (phone !== undefined) {
+      if (phone === null || phone === '') {
+        updates.phone = null;
+      } else {
+        const cleanPhone = normalizePhone(phone);
+        assert(isPhone(cleanPhone), 'Phone number is invalid');
+        updates.phone = cleanPhone;
+      }
+    }
+
+    if (gender !== undefined) {
+      assert(['male', 'female', 'other', 'prefer_not_to_say'].includes(String(gender).toLowerCase()), 'gender is invalid');
+      updates.gender = String(gender).toLowerCase();
+    }
+
+    if (dateOfBirth !== undefined) {
+      if (dateOfBirth === null || dateOfBirth === '') {
+        updates.date_of_birth = null;
+      } else {
+        assert(isIsoDate(dateOfBirth), 'dateOfBirth must be in YYYY-MM-DD format');
+        updates.date_of_birth = dateOfBirth;
+      }
+    }
+
+    assert(Object.keys(updates).length > 0, 'No valid profile fields provided');
+
     const { data, error } = await supabase
       .from('users')
-      .update({
-        name: name || undefined,
-        phone: phone || undefined,
-        gender: gender || undefined,
-        date_of_birth: dateOfBirth || undefined,
-      })
+      .update(updates)
       .eq('id', req.user.id)
       .select()
       .single();

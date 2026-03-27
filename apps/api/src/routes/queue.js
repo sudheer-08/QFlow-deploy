@@ -6,7 +6,7 @@ const { classifySymptoms } = require('../services/ai');
 const { sendPositionAlerts, sendCalledAlert, sendCompletionAlert } = require('../services/alerts');
 const { scheduleRatingRequest, queueWhatsAppSend } = require('../jobs/reminders');
 const { getDayBounds, getLocalDateString } = require('../utils/date');
-const { assert, isNonEmptyString, isPhone } = require('../utils/validation');
+const { assert, isNonEmptyString, isPhone, isUuid, normalizePhone } = require('../utils/validation');
 
 // All queue routes require authentication
 router.use(authenticate);
@@ -21,9 +21,12 @@ const generateToken = (type, count) => {
 router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req, res) => {
   try {
     const { patientName, phone, symptoms, doctorId, visitType, isEmergency } = req.body;
-    assert(isNonEmptyString(patientName, 100), 'patientName is required');
-    assert(isPhone(phone), 'Valid phone is required');
-    assert(isNonEmptyString(doctorId, 64), 'doctorId is required');
+    const cleanPatientName = typeof patientName === 'string' ? patientName.trim() : patientName;
+    const cleanPhone = normalizePhone(phone);
+
+    assert(isNonEmptyString(cleanPatientName, 100), 'patientName is required');
+    assert(isPhone(cleanPhone), 'Valid phone is required');
+    assert(isUuid(doctorId), 'doctorId must be a valid UUID');
 
     const tenantId = req.user.tenantId;
     const io = req.app.get('io');
@@ -57,7 +60,7 @@ router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req
     const { data: existingPatient } = await supabase
       .from('users')
       .select('id')
-      .eq('phone', phone)
+      .eq('phone', cleanPhone)
       .eq('tenant_id', tenantId)
       .single();
 
@@ -67,8 +70,8 @@ router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req
       await supabase.from('users').insert({
         id: patientId,
         tenant_id: tenantId,
-        name: patientName,
-        phone,
+        name: cleanPatientName,
+        phone: cleanPhone,
         role: 'patient',
         is_active: true
       });
@@ -100,7 +103,7 @@ router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req
     // 5. Emit real-time event to all clinic dashboards
     io.to(`tenant:${tenantId}`).emit('queue:patient_added', {
       token: tokenNumber,
-      name: patientName,
+      name: cleanPatientName,
       priority,
       registrationType: 'walk_in',
       aiSummary,
@@ -108,8 +111,8 @@ router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req
     });
 
     // 6. Queue WhatsApp notification (non-blocking)
-    if (phone) {
-      queueWhatsAppSend(phone, `Hello ${patientName}! Your token is *${tokenNumber}*. Track your position: ${process.env.FRONTEND_URL}/track/${trackerToken}`).catch(err => {
+    if (cleanPhone) {
+      queueWhatsAppSend(cleanPhone, `Hello ${cleanPatientName}! Your token is *${tokenNumber}*. Track your position: ${process.env.FRONTEND_URL}/track/${trackerToken}`).catch(err => {
         console.error('Error queueing WhatsApp:', err.message);
       });
     }

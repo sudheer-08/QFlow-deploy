@@ -62,7 +62,13 @@ router.get('/', async (req, res, next) => {
 
     // Check WhatsApp
     try {
-      if (global.whatsappClient) {
+      const whatsappEnabled = process.env.WHATSAPP_ENABLED !== 'false';
+      if (!whatsappEnabled) {
+        health.checks.whatsapp = {
+          status: 'disabled',
+          message: 'Disabled via WHATSAPP_ENABLED=false'
+        };
+      } else if (global.whatsappClient) {
         const state = global.whatsappClient.info?.me ? 'ok' : 'connecting';
         health.checks.whatsapp = {
           status: state,

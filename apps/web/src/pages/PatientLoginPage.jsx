@@ -2,9 +2,19 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import {
+  getStrongPasswordMessage,
+  isEmail,
+  isNonEmptyString,
+  isPhone,
+  isStrongPassword,
+  normalizeEmail,
+  normalizePhone
+} from '../utils/validation'
+import './PatientLoginPage.css'
 
 export default function PatientLoginPage() {
-  const [mode, setMode] = useState('login') // login | register
+  const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', gender: '', dob: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -12,22 +22,49 @@ export default function PatientLoginPage() {
   const navigate = useNavigate()
 
   const handleSubmit = async () => {
+    const cleanEmail = normalizeEmail(form.email)
+    const cleanPhone = normalizePhone(form.phone)
+
+    if (!isEmail(cleanEmail)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    if (!isNonEmptyString(form.password, 128)) {
+      setError('Password is required.')
+      return
+    }
+
+    if (mode === 'register') {
+      if (!isNonEmptyString(form.name, 100)) {
+        setError('Full name is required.')
+        return
+      }
+      if (!isPhone(cleanPhone)) {
+        setError('Please enter a valid phone number.')
+        return
+      }
+      if (!isStrongPassword(form.password)) {
+        setError(getStrongPasswordMessage())
+        return
+      }
+    }
+
     setLoading(true)
     setError('')
+
     try {
       if (mode === 'login') {
         const { data } = await api.post('/auth/login', {
-          email: form.email,
+          email: cleanEmail,
           password: form.password
         })
         login(data.user, data.accessToken, data.refreshToken)
         navigate('/patient/dashboard')
       } else {
-        // Register as patient
         const { data } = await api.post('/auth/register-patient', {
-          name: form.name,
-          phone: form.phone,
-          email: form.email,
+          name: form.name.trim(),
+          phone: cleanPhone,
+          email: cleanEmail,
           password: form.password,
           gender: form.gender,
           dateOfBirth: form.dob
@@ -43,94 +80,90 @@ export default function PatientLoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif' }}>
+    <div className="pl-shell">
+      <div className="pl-orb pl-orb-left" />
+      <div className="pl-orb pl-orb-right" />
 
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '40px 20px 30px', textAlign: 'center', color: 'white' }}>
-        <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.2)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 12px' }}>🦷</div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px' }}>QFlow Patient</h1>
-        <p style={{ fontSize: 13, color: '#bfdbfe', margin: 0 }}>Skip the waiting room</p>
-      </div>
+      <div className="pl-card">
+        <header className="pl-header">
+          <div className="pl-logo">Q</div>
+          <h1>QFlow Patient Access</h1>
+          <p>Sign in to manage bookings and track upcoming visits.</p>
+        </header>
 
-      {/* Toggle */}
-      <div style={{ background: 'white', margin: '16px', borderRadius: 12, padding: 4, display: 'flex', border: '1px solid #e2e8f0' }}>
-        {['login', 'register'].map(m => (
-          <button key={m}
-            onClick={() => setMode(m)}
-            style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: mode === m ? '#2563eb' : 'transparent', color: mode === m ? 'white' : '#64748b', transition: 'all 0.2s' }}
-          >
-            {m === 'login' ? 'Sign In' : 'Register'}
-          </button>
-        ))}
-      </div>
+        <div className="pl-toggle" role="tablist" aria-label="Login mode">
+          {['login', 'register'].map(m => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              className={`pl-toggle-btn ${mode === m ? 'is-active' : ''}`}
+              onClick={() => setMode(m)}
+            >
+              {m === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          ))}
+        </div>
 
-      {/* Form */}
-      <div style={{ margin: '0 16px', background: 'white', borderRadius: 16, padding: 20, border: '1px solid #e2e8f0' }}>
+        {error && <div className="pl-error">{error}</div>}
 
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="pl-form">
           {mode === 'register' && (
             <>
+              <label className="pl-field">
+                <span>Full Name *</span>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Your full name" />
+              </label>
+
+              <label className="pl-field">
+                <span>WhatsApp Number *</span>
+                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" type="tel" />
+              </label>
+
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Full Name *</label>
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})}
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                  placeholder="Your full name" />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>WhatsApp Number *</label>
-                <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})}
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-                  placeholder="+91 98765 43210" type="tel" />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Gender</label>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <span className="pl-inline-label">Gender</span>
+                <div className="pl-gender-row">
                   {['Male', 'Female', 'Other'].map(g => (
-                    <button key={g} onClick={() => setForm({...form, gender: g})}
-                      style={{ flex: 1, padding: '10px', border: `1.5px solid ${form.gender === g ? '#2563eb' : '#e2e8f0'}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: form.gender === g ? '#eff6ff' : 'white', color: form.gender === g ? '#2563eb' : '#64748b' }}
-                    >{g}</button>
+                    <button
+                      key={g}
+                      type="button"
+                      className={`pl-gender ${form.gender === g ? 'is-active' : ''}`}
+                      onClick={() => setForm({ ...form, gender: g })}
+                    >
+                      {g}
+                    </button>
                   ))}
                 </div>
               </div>
+
+              <label className="pl-field">
+                <span>Date of Birth (optional)</span>
+                <input value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} type="date" />
+              </label>
             </>
           )}
 
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Email *</label>
-            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})}
-              style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              placeholder="you@email.com" type="email" />
-          </div>
+          <label className="pl-field">
+            <span>Email *</span>
+            <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="you@email.com" type="email" />
+          </label>
 
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Password *</label>
-            <input value={form.password} onChange={e => setForm({...form, password: e.target.value})}
-              style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              placeholder="••••••••" type="password" />
-          </div>
+          <label className="pl-field">
+            <span>Password *</span>
+            <input value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Enter password" type="password" />
+          </label>
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            style={{ width: '100%', background: loading ? '#93c5fd' : '#2563eb', color: 'white', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
-          >
-            {loading ? '...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+          <button type="button" className="pl-submit" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
         </div>
-      </div>
 
-      <p style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 16 }}>
-        Just browsing?{' '}
-        <span onClick={() => navigate('/')} style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 600 }}>
-          Find clinics without signing in →
-        </span>
-      </p>
+        <p className="pl-footnote">
+          Prefer browsing first?
+          <button type="button" onClick={() => navigate('/')}> Find clinics</button>
+        </p>
+      </div>
     </div>
   )
 }

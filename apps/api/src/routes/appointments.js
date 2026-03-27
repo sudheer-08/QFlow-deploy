@@ -5,7 +5,17 @@ const { authenticate } = require('../middleware/auth');
 const { classifySymptoms } = require('../services/ai');
 const { scheduleReminders, cancelReminders, queueWhatsAppSend } = require('../jobs/reminders');
 const { getLocalDateString } = require('../utils/date');
-const { assert, isEmail, isIsoDate, isNonEmptyString, isPhone, isTimeHHMM } = require('../utils/validation');
+const {
+  assert,
+  isEmail,
+  isIsoDate,
+  isNonEmptyString,
+  isPhone,
+  isTimeHHMM,
+  isUuid,
+  normalizeEmail,
+  normalizePhone
+} = require('../utils/validation');
 
 // ─── Helper: generate time slots ─────────────────────
 const generateSlots = (start, end, durationMins) => {
@@ -27,7 +37,7 @@ const generateSlots = (start, end, durationMins) => {
 router.get('/slots', async (req, res) => {
   try {
     const { doctorId, date } = req.query;
-    assert(isNonEmptyString(doctorId, 64), 'doctorId is required');
+    assert(isUuid(doctorId), 'doctorId must be a valid UUID');
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
 
     let { data: settings } = await supabase
@@ -116,12 +126,19 @@ router.post('/book', async (req, res) => {
       patientId: loggedInPatientId  // ✅ sent by frontend when patient is logged in
     } = req.body;
 
-    assert(isNonEmptyString(tenantId, 64), 'tenantId is required');
-    assert(isNonEmptyString(doctorId, 64), 'doctorId is required');
-    assert(isNonEmptyString(patientName, 100), 'patientName is required');
-    assert(isPhone(phone), 'Valid phone is required');
+    const cleanPatientName = typeof patientName === 'string' ? patientName.trim() : patientName;
+    const cleanPhone = normalizePhone(phone);
+    const cleanEmail = email ? normalizeEmail(email) : null;
+
+    assert(isUuid(tenantId), 'tenantId must be a valid UUID');
+    assert(isUuid(doctorId), 'doctorId must be a valid UUID');
+    if (loggedInPatientId) {
+      assert(isUuid(loggedInPatientId), 'patientId must be a valid UUID');
+    }
+    assert(isNonEmptyString(cleanPatientName, 100), 'patientName is required');
+    assert(isPhone(cleanPhone), 'Valid phone is required');
     if (email) {
-      assert(isEmail(email), 'Invalid email format');
+      assert(isEmail(cleanEmail), 'Invalid email format');
     }
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
     assert(isTimeHHMM(slotTime), 'slotTime must be in HH:MM format');
@@ -150,7 +167,7 @@ router.post('/book', async (req, res) => {
       const { data: existingPatient } = await supabase
         .from('users')
         .select('id')
-        .eq('phone', phone)
+        .eq('phone', cleanPhone)
         .eq('role', 'patient')
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .single();
@@ -163,9 +180,9 @@ router.post('/book', async (req, res) => {
         await supabase.from('users').insert({
           id: patientId,
           tenant_id: tenantId,
-          name: patientName,
-          phone,
-          email,
+          name: cleanPatientName,
+          phone: cleanPhone,
+          email: cleanEmail,
           role: 'patient',
           is_active: true
         });
@@ -248,8 +265,8 @@ router.post('/book', async (req, res) => {
       `Track your appointment:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}\n\n` +
       `We'll remind you 1 hour before. 🦷`;
 
-    if (phone) {
-      queueWhatsAppSend(phone, confirmationMessage).catch((waErr) => {
+    if (cleanPhone) {
+      queueWhatsAppSend(cleanPhone, confirmationMessage).catch((waErr) => {
         console.warn('WhatsApp confirmation failed:', waErr.message);
       });
     }
@@ -263,7 +280,7 @@ router.post('/book', async (req, res) => {
 
     // 9. Notify clinic dashboard
     io.to(`tenant:${tenantId}`).emit('appointment:new', {
-      patientName,
+      patientName: cleanPatientName,
       date,
       slotTime,
       doctorName,

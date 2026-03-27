@@ -3,6 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useAuthStore } from '../store/authStore'
+import {
+  getStrongPasswordMessage,
+  isEmail,
+  isNonEmptyString,
+  isPhone,
+  isStrongPassword,
+  isTimeHHMM,
+  normalizeEmail,
+  normalizePhone
+} from '../utils/validation'
+import './ClinicRegisterPage.css'
 
 const STEPS = ['Clinic Info', 'Location', 'Doctors', 'Account']
 const DEFAULT_MAP_CENTER = [30.7333, 76.7794]
@@ -41,6 +52,7 @@ function FocusSelectedLocation({ selectedPosition }) {
 export default function ClinicRegisterPage() {
   const navigate = useNavigate()
   const { login } = useAuthStore()
+
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [locationLoading, setLocationLoading] = useState(false)
@@ -48,20 +60,16 @@ export default function ClinicRegisterPage() {
   const [error, setError] = useState('')
 
   const [clinic, setClinic] = useState({
-    // Step 1 — Clinic info
     name: '',
     phone: '',
     specialization: 'Dental',
     openTime: '09:00',
     closeTime: '20:00',
-    // Step 2 — Location
     address: '',
     city: 'Chandigarh',
     lat: '',
     lng: '',
-    // Step 3 — Doctors
     doctors: [{ name: '', specialization: 'General Dentistry', experience: '5', fee: '300' }],
-    // Step 4 — Admin account
     adminName: '',
     email: '',
     password: '',
@@ -129,21 +137,48 @@ export default function ClinicRegisterPage() {
     setClinic(prev => ({ ...prev, doctors: prev.doctors.filter((_, i) => i !== idx) }))
   }
 
-  // Generate subdomain from clinic name
   const generateSubdomain = (name) => {
-    return name.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '')
-      .slice(0, 20)
+    return name.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '').slice(0, 20)
+  }
+
+  const canProceed = () => {
+    if (step === 0) {
+      return isNonEmptyString(clinic.name, 100)
+        && isPhone(clinic.phone)
+        && isTimeHHMM(clinic.openTime)
+        && isTimeHHMM(clinic.closeTime)
+    }
+    if (step === 1) return isNonEmptyString(clinic.address, 200) && isNonEmptyString(clinic.city, 50)
+    if (step === 2) return clinic.doctors.every(d => isNonEmptyString(d.name, 100) && isNonEmptyString(d.specialization, 100))
+    if (step === 3) {
+      return isNonEmptyString(clinic.adminName, 100)
+        && isEmail(clinic.email)
+        && isStrongPassword(clinic.password)
+        && clinic.password === clinic.confirmPassword
+    }
+    return false
   }
 
   const handleSubmit = async () => {
-    if (clinic.password !== clinic.confirmPassword) {
-      return setError('Passwords do not match')
+    const cleanName = clinic.name.trim()
+    const cleanPhone = normalizePhone(clinic.phone)
+    const cleanAdminName = clinic.adminName.trim()
+    const cleanEmail = normalizeEmail(clinic.email)
+    const generatedSubdomain = generateSubdomain(cleanName)
+
+    if (!isNonEmptyString(cleanName, 100)) return setError('Clinic name is required.')
+    if (!isPhone(cleanPhone)) return setError('Please enter a valid clinic phone number.')
+    if (!isTimeHHMM(clinic.openTime) || !isTimeHHMM(clinic.closeTime)) return setError('Opening and closing time must be in HH:MM format.')
+    if (!isNonEmptyString(clinic.address, 200)) return setError('Clinic address is required.')
+    if (!isNonEmptyString(clinic.city, 50)) return setError('City is required.')
+    if (!clinic.doctors.every(d => isNonEmptyString(d.name, 100) && isNonEmptyString(d.specialization, 100))) {
+      return setError('Please add valid doctor names and specializations.')
     }
-    if (clinic.password.length < 6) {
-      return setError('Password must be at least 6 characters')
-    }
+    if (!isNonEmptyString(cleanAdminName, 100)) return setError('Admin name is required.')
+    if (!isEmail(cleanEmail)) return setError('Please enter a valid admin email.')
+    if (!isStrongPassword(clinic.password)) return setError(getStrongPasswordMessage())
+    if (clinic.password !== clinic.confirmPassword) return setError('Passwords do not match.')
+    if (!generatedSubdomain) return setError('Clinic name should contain letters or numbers to generate URL.')
 
     setLoading(true)
     setError('')
@@ -153,47 +188,40 @@ export default function ClinicRegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clinicName: clinic.name,
-          subdomain: generateSubdomain(clinic.name),
-          address: clinic.address,
-          city: clinic.city,
+          clinicName: cleanName,
+          subdomain: generatedSubdomain,
+          address: clinic.address.trim(),
+          city: clinic.city.trim(),
           lat: parseFloat(clinic.lat) || null,
           lng: parseFloat(clinic.lng) || null,
-          phone: clinic.phone,
+          phone: cleanPhone,
           specialization: clinic.specialization,
           openTime: clinic.openTime,
           closeTime: clinic.closeTime,
-          doctors: clinic.doctors,
-          adminName: clinic.adminName,
-          adminEmail: clinic.email,
+          doctors: clinic.doctors.map(doc => ({
+            ...doc,
+            name: doc.name.trim(),
+            specialization: doc.specialization.trim()
+          })),
+          adminName: cleanAdminName,
+          adminEmail: cleanEmail,
           adminPassword: clinic.password
         })
       })
 
       const data = await response.json()
-
       if (data.error) {
         setError(data.error)
         return
       }
 
-      // Auto login after registration
       login(data.user, data.accessToken, data.refreshToken)
       navigate('/admin')
-
     } catch (err) {
       setError('Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
-
-  const canProceed = () => {
-    if (step === 0) return clinic.name && clinic.phone && clinic.openTime && clinic.closeTime
-    if (step === 1) return clinic.address && clinic.city
-    if (step === 2) return clinic.doctors.every(d => d.name && d.specialization)
-    if (step === 3) return clinic.adminName && clinic.email && clinic.password && clinic.confirmPassword
-    return false
   }
 
   const specializations = [
@@ -209,324 +237,240 @@ export default function ClinicRegisterPage() {
   ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif', paddingBottom: 160 }}>
+    <div className="cr-shell">
+      <div className="cr-orb cr-orb-left" />
+      <div className="cr-orb cr-orb-right" />
 
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '28px 20px 20px', color: 'white' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/')}
-            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
+      <header className="cr-topbar">
+        <div className="cr-top-row">
+          <button className="cr-back" onClick={() => (step > 0 ? setStep(step - 1) : navigate('/'))}>←</button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Register Your Clinic</h1>
-            <p style={{ fontSize: 12, color: '#bfdbfe', margin: 0 }}>Join QFlow — Start accepting bookings today</p>
+            <h1>List Your Clinic</h1>
+            <p>Register and start receiving bookings today</p>
           </div>
         </div>
 
-        {/* Progress steps */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {STEPS.map((s, i) => (
-            <div key={s} onClick={() => setStep(i)} style={{ flex: 1, textAlign: 'center', cursor: 'pointer', transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
-              <div style={{ height: 4, borderRadius: 99, background: i <= step ? 'white' : 'rgba(255,255,255,0.3)', marginBottom: 4, transition: 'all 0.2s' }} />
-              <span style={{ fontSize: 10, color: i <= step ? 'white' : 'rgba(255,255,255,0.5)', fontWeight: i === step ? 700 : 400 }}>{s}</span>
-            </div>
+        <div className="cr-stepper">
+          {STEPS.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              className={`cr-step ${i <= step ? 'is-on' : ''} ${i === step ? 'is-current' : ''}`}
+              onClick={() => setStep(i)}
+            >
+              <span className="cr-step-line" />
+              <span className="cr-step-label">{label}</span>
+            </button>
           ))}
         </div>
-      </div>
+      </header>
 
-      <div style={{ padding: 16 }}>
-
-        {/* Step 0 — Clinic Info */}
+      <main className="cr-main-card">
         {step === 0 && (
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Basic Information</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Clinic Name *</label>
-                <input value={clinic.name} onChange={e => updateClinic('name', e.target.value)}
-                  placeholder="e.g. Smile Care Dental Clinic"
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                {clinic.name && (
-                  <p style={{ fontSize: 11, color: '#2563eb', margin: '4px 0 0' }}>
-                    Your URL: qflow.com/clinic/{generateSubdomain(clinic.name)}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Clinic Phone *</label>
-                <input value={clinic.phone} onChange={e => updateClinic('phone', e.target.value)}
-                  placeholder="+91 98765 43210" type="tel"
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Specialization *</label>
-                <select value={clinic.specialization} onChange={e => updateClinic('specialization', e.target.value)}
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'white' }}>
-                  {specializations.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Opening Time *</label>
-                  <input value={clinic.openTime} onChange={e => updateClinic('openTime', e.target.value)}
-                    type="time"
-                    style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Closing Time *</label>
-                  <input value={clinic.closeTime} onChange={e => updateClinic('closeTime', e.target.value)}
-                    type="time"
-                    style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-                <button onClick={() => setStep(step - 1)}
-                  style={{ background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  ← Back
-                </button>
-                <button onClick={() => canProceed() && setStep(step + 1)} disabled={!canProceed()}
-                  style={{ background: canProceed() ? '#2563eb' : '#e2e8f0', color: canProceed() ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: canProceed() ? 'pointer' : 'not-allowed' }}>
-                  Next → {STEPS[step + 1]}
-                </button>
-              </div>
+          <section className="cr-section">
+            <div className="cr-head">
+              <h2>Clinic Information</h2>
+              <p>Set core details your patients will see first.</p>
             </div>
-          </div>
+
+            <label className="cr-field">
+              <span>Clinic Name *</span>
+              <input value={clinic.name} onChange={e => updateClinic('name', e.target.value)} placeholder="e.g. Smile Care Dental Clinic" />
+              {clinic.name && <small>Public URL: qflow.com/clinic/{generateSubdomain(clinic.name)}</small>}
+            </label>
+
+            <label className="cr-field">
+              <span>Clinic Phone *</span>
+              <input value={clinic.phone} onChange={e => updateClinic('phone', e.target.value)} placeholder="+91 98765 43210" type="tel" />
+            </label>
+
+            <label className="cr-field">
+              <span>Specialization *</span>
+              <select value={clinic.specialization} onChange={e => updateClinic('specialization', e.target.value)}>
+                {specializations.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            <div className="cr-grid2">
+              <label className="cr-field">
+                <span>Opening Time *</span>
+                <input value={clinic.openTime} onChange={e => updateClinic('openTime', e.target.value)} type="time" />
+              </label>
+              <label className="cr-field">
+                <span>Closing Time *</span>
+                <input value={clinic.closeTime} onChange={e => updateClinic('closeTime', e.target.value)} type="time" />
+              </label>
+            </div>
+          </section>
         )}
 
-        {/* Step 1 — Location */}
         {step === 1 && (
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Clinic Location</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Full Address *</label>
-                <textarea value={clinic.address} onChange={e => updateClinic('address', e.target.value)}
-                  placeholder="e.g. SCO 45, Sector 17, Chandigarh - 160017"
-                  rows={3}
-                  style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
-              </div>
+          <section className="cr-section">
+            <div className="cr-head">
+              <h2>Clinic Location</h2>
+              <p>Add address and optionally pin map location for better discovery.</p>
+            </div>
 
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>City *</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['Chandigarh', 'Mohali', 'Panchkula'].map(city => (
-                    <button key={city} onClick={() => updateClinic('city', city)}
-                      style={{ flex: 1, padding: '10px', border: `2px solid ${clinic.city === city ? '#2563eb' : '#e2e8f0'}`, borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: clinic.city === city ? '#eff6ff' : 'white', color: clinic.city === city ? '#2563eb' : '#374151' }}>
-                      {city}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <label className="cr-field">
+              <span>Full Address *</span>
+              <textarea value={clinic.address} onChange={e => updateClinic('address', e.target.value)} rows={3} placeholder="SCO 45, Sector 17, Chandigarh" />
+            </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Latitude (optional)</label>
-                  <input value={clinic.lat} onChange={e => updateClinic('lat', e.target.value)}
-                    placeholder="e.g. 30.7414"
-                    style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Longitude (optional)</label>
-                  <input value={clinic.lng} onChange={e => updateClinic('lng', e.target.value)}
-                    placeholder="e.g. 76.7682"
-                    style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <button
-                onClick={useCurrentLocation}
-                disabled={locationLoading}
-                style={{
-                  background: locationLoading ? '#e2e8f0' : '#eff6ff',
-                  color: locationLoading ? '#94a3b8' : '#1d4ed8',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 10,
-                  padding: '11px 14px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: locationLoading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {locationLoading ? '⏳ Detecting your location...' : '📍 Use Current Location'}
-              </button>
-
-              {locationError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 10, fontSize: 12, color: '#b91c1c' }}>
-                  {locationError}
-                </div>
-              )}
-
-              <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, color: '#475569', fontWeight: 600 }}>
-                  Tap on the map to pin your clinic location
-                </div>
-                <div style={{ height: 260 }}>
-                  <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <FocusSelectedLocation selectedPosition={selectedPosition} />
-                    <LocationSelector selectedPosition={selectedPosition} onSelect={setCoordinates} />
-                  </MapContainer>
-                </div>
-              </div>
-
-              <div style={{ background: '#eff6ff', borderRadius: 10, padding: 12, fontSize: 12, color: '#1d4ed8' }}>
-                💡 Tip: Use current location or tap on map for instant coordinates. You can still edit values manually.
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-                <button onClick={() => setStep(step - 1)}
-                  style={{ background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  ← Back
-                </button>
-                <button onClick={() => canProceed() && setStep(step + 1)} disabled={!canProceed()}
-                  style={{ background: canProceed() ? '#2563eb' : '#e2e8f0', color: canProceed() ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: canProceed() ? 'pointer' : 'not-allowed' }}>
-                  Next → {STEPS[step + 1]}
-                </button>
+            <div>
+              <span className="cr-inline-label">City *</span>
+              <div className="cr-chip-row">
+                {['Chandigarh', 'Mohali', 'Panchkula'].map(city => (
+                  <button
+                    key={city}
+                    type="button"
+                    className={`cr-chip ${clinic.city === city ? 'is-active' : ''}`}
+                    onClick={() => updateClinic('city', city)}
+                  >
+                    {city}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
+
+            <div className="cr-grid2">
+              <label className="cr-field">
+                <span>Latitude (optional)</span>
+                <input value={clinic.lat} onChange={e => updateClinic('lat', e.target.value)} placeholder="30.7414" />
+              </label>
+              <label className="cr-field">
+                <span>Longitude (optional)</span>
+                <input value={clinic.lng} onChange={e => updateClinic('lng', e.target.value)} placeholder="76.7682" />
+              </label>
+            </div>
+
+            <button type="button" className="cr-location-btn" onClick={useCurrentLocation} disabled={locationLoading}>
+              {locationLoading ? 'Detecting location...' : 'Use current location'}
+            </button>
+
+            {locationError && <div className="cr-error">{locationError}</div>}
+
+            <div className="cr-map-card">
+              <div className="cr-map-head">Tap on the map to pin clinic location</div>
+              <div className="cr-map-wrap">
+                <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <FocusSelectedLocation selectedPosition={selectedPosition} />
+                  <LocationSelector selectedPosition={selectedPosition} onSelect={setCoordinates} />
+                </MapContainer>
+              </div>
+            </div>
+
+            <div className="cr-tip">Tip: pinning map location helps patients find your clinic faster.</div>
+          </section>
         )}
 
-        {/* Step 2 — Doctors */}
         {step === 2 && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Your Doctors</h2>
+          <section className="cr-section">
+            <div className="cr-head cr-head-inline">
+              <div>
+                <h2>Doctors</h2>
+                <p>Add up to 5 doctors for appointment routing.</p>
+              </div>
               {clinic.doctors.length < 5 && (
-                <button onClick={addDoctor}
-                  style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  + Add Doctor
-                </button>
+                <button type="button" className="cr-add" onClick={addDoctor}>+ Add Doctor</button>
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="cr-stack">
               {clinic.doctors.map((doc, idx) => (
-                <div key={idx} style={{ background: 'white', borderRadius: 14, padding: 16, border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Doctor {idx + 1}</span>
+                <article key={idx} className="cr-doctor-card">
+                  <div className="cr-doc-head">
+                    <strong>Doctor {idx + 1}</strong>
                     {clinic.doctors.length > 1 && (
-                      <button onClick={() => removeDoctor(idx)}
-                        style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
-                        Remove
-                      </button>
+                      <button type="button" className="cr-remove" onClick={() => removeDoctor(idx)}>Remove</button>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <input value={doc.name} onChange={e => updateDoctor(idx, 'name', e.target.value)}
-                      placeholder="Doctor full name *"
-                      style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                    <select value={doc.specialization} onChange={e => updateDoctor(idx, 'specialization', e.target.value)}
-                      style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', background: 'white', boxSizing: 'border-box' }}>
+
+                  <label className="cr-field">
+                    <span>Doctor Name *</span>
+                    <input value={doc.name} onChange={e => updateDoctor(idx, 'name', e.target.value)} placeholder="Doctor full name" />
+                  </label>
+
+                  <label className="cr-field">
+                    <span>Specialization *</span>
+                    <select value={doc.specialization} onChange={e => updateDoctor(idx, 'specialization', e.target.value)}>
                       {doctorSpecializations.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <input value={doc.experience} onChange={e => updateDoctor(idx, 'experience', e.target.value)}
-                        placeholder="Experience (years)"
-                        type="number"
-                        style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                      <input value={doc.fee} onChange={e => updateDoctor(idx, 'fee', e.target.value)}
-                        placeholder="Consultation fee ₹"
-                        type="number"
-                        style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
+                  </label>
+
+                  <div className="cr-grid2">
+                    <label className="cr-field">
+                      <span>Experience</span>
+                      <input value={doc.experience} onChange={e => updateDoctor(idx, 'experience', e.target.value)} type="number" placeholder="Years" />
+                    </label>
+                    <label className="cr-field">
+                      <span>Consultation Fee</span>
+                      <input value={doc.fee} onChange={e => updateDoctor(idx, 'fee', e.target.value)} type="number" placeholder="300" />
+                    </label>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-              <button onClick={() => setStep(step - 1)}
-                style={{ background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                ← Back
-              </button>
-              <button onClick={() => canProceed() && setStep(step + 1)} disabled={!canProceed()}
-                style={{ background: canProceed() ? '#2563eb' : '#e2e8f0', color: canProceed() ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 600, cursor: canProceed() ? 'pointer' : 'not-allowed' }}>
-                Next → {STEPS[step + 1]}
-              </button>
-            </div>
-          </div>
+          </section>
         )}
 
-        {/* Step 3 — Admin account */}
         {step === 3 && (
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Create Admin Account</h2>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>This account manages your clinic dashboard</p>
-
-            {error && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { key: 'adminName', label: 'Your Name *', placeholder: 'Clinic owner name', type: 'text' },
-                { key: 'email', label: 'Email *', placeholder: 'admin@yourclinic.com', type: 'email' },
-                { key: 'password', label: 'Password *', placeholder: 'Min 6 characters', type: 'password' },
-                { key: 'confirmPassword', label: 'Confirm Password *', placeholder: 'Re-enter password', type: 'password' },
-              ].map(field => (
-                <div key={field.key}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>{field.label}</label>
-                  <input value={clinic[field.key]} onChange={e => updateClinic(field.key, e.target.value)}
-                    placeholder={field.placeholder} type={field.type}
-                    style={{ width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-              ))}
+          <section className="cr-section">
+            <div className="cr-head">
+              <h2>Create Admin Account</h2>
+              <p>This account controls your clinic dashboard and settings.</p>
             </div>
 
-            {/* Summary */}
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14, marginTop: 16 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: '0 0 8px' }}>✅ Your clinic will get:</p>
-              <div style={{ fontSize: 12, color: '#166534', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <p style={{ margin: 0 }}>🌐 Public page: qflow.com/clinic/{generateSubdomain(clinic.name)}</p>
-                <p style={{ margin: 0 }}>📅 Online appointment booking</p>
-                <p style={{ margin: 0 }}>📊 Admin dashboard with analytics</p>
-                <p style={{ margin: 0 }}>📱 SMS + WhatsApp notifications</p>
-                <p style={{ margin: 0 }}>🤖 AI symptom triage</p>
-              </div>
+            {error && <div className="cr-error">{error}</div>}
+
+            {[
+              { key: 'adminName', label: 'Your Name *', placeholder: 'Clinic owner name', type: 'text' },
+              { key: 'email', label: 'Email *', placeholder: 'admin@yourclinic.com', type: 'email' },
+              { key: 'password', label: 'Password *', placeholder: '8+ chars, Aa1!', type: 'password' },
+              { key: 'confirmPassword', label: 'Confirm Password *', placeholder: 'Re-enter password', type: 'password' }
+            ].map(field => (
+              <label key={field.key} className="cr-field">
+                <span>{field.label}</span>
+                <input
+                  value={clinic[field.key]}
+                  onChange={e => updateClinic(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  type={field.type}
+                />
+              </label>
+            ))}
+
+            <div className="cr-summary">
+              <p className="cr-summary-title">Your clinic will get</p>
+              <ul>
+                <li>Public page: qflow.com/clinic/{generateSubdomain(clinic.name || 'yourclinic')}</li>
+                <li>Online appointment booking</li>
+                <li>Admin dashboard and analytics</li>
+                <li>Patient notifications</li>
+                <li>AI-assisted intake support</li>
+              </ul>
             </div>
-
-            <button onClick={handleSubmit} disabled={!canProceed() || loading}
-              style={{ width: '100%', background: canProceed() && !loading ? '#16a34a' : '#e2e8f0', color: canProceed() && !loading ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 700, cursor: canProceed() && !loading ? 'pointer' : 'not-allowed', marginTop: 10 }}>
-              {loading ? '⏳ Registering clinic...' : '🏥 Register My Clinic — Free'}
-            </button>
-
-            <button onClick={() => step > 0 && setStep(step - 1)}
-              style={{ width: '100%', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
-              ← Back to Doctors
-            </button>
-          </div>
+          </section>
         )}
+      </main>
 
-      </div>
-
-      {/* Bottom CTA */}
-      <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: 'white', padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10 }}>
+      <footer className="cr-footer">
         {step > 0 && (
-          <button onClick={() => setStep(step - 1)}
-            style={{ flex: '0 0 80px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            ← Back
+          <button type="button" className="cr-footer-back" onClick={() => setStep(step - 1)}>
+            Back
           </button>
         )}
+
         {step < 3 ? (
-          <button onClick={() => canProceed() && setStep(step + 1)}
-            disabled={!canProceed()}
-            style={{ flex: 1, background: canProceed() ? '#2563eb' : '#e2e8f0', color: canProceed() ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: canProceed() ? 'pointer' : 'not-allowed' }}>
-            Next → {STEPS[step + 1]}
+          <button type="button" className="cr-footer-next" onClick={() => canProceed() && setStep(step + 1)} disabled={!canProceed()}>
+            Next: {STEPS[step + 1]}
           </button>
         ) : (
-          <button onClick={handleSubmit}
-            disabled={!canProceed() || loading}
-            style={{ flex: 1, background: canProceed() && !loading ? '#16a34a' : '#e2e8f0', color: canProceed() && !loading ? 'white' : '#94a3b8', border: 'none', borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: canProceed() && !loading ? 'pointer' : 'not-allowed' }}>
-            {loading ? '⏳ Registering...' : '🏥 Register Free'}
+          <button type="button" className="cr-footer-submit" onClick={handleSubmit} disabled={!canProceed() || loading}>
+            {loading ? 'Registering...' : 'Register Clinic'}
           </button>
         )}
-      </div>
+      </footer>
     </div>
   )
 }

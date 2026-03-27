@@ -10,6 +10,7 @@ const qrcode = require('qrcode-terminal');
 let client = null;
 let isReady = false;
 let qrCodeData = null;
+let isInitializing = false;
 
 const initWhatsApp = () => {
   if (client) return client;
@@ -57,20 +58,36 @@ const initWhatsApp = () => {
   });
 
   // ── Disconnected ──────────────────────────────────────
-  client.on('disconnected', (reason) => {
+  client.on('disconnected', async (reason) => {
     console.warn('⚠️ WhatsApp disconnected:', reason);
     isReady = false;
-    setTimeout(() => {
-      console.log('🔄 Attempting WhatsApp reconnect...');
-      client.initialize();
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Attempting WhatsApp reconnect...');
+        if (client) {
+          await client.destroy();
+        }
+      } catch (err) {
+        console.warn('⚠️ WhatsApp destroy before reconnect failed:', err.message);
+      } finally {
+        client = null;
+        initWhatsApp();
+      }
     }, 5000);
   });
 
   // ── Catch init errors so they don't crash the whole server ──
-  client.initialize().catch(err => {
-    console.error('❌ WhatsApp init error:', err.message);
-    console.warn('⚠️ Server continues without WhatsApp. Fix the error and restart.');
-  });
+  if (!isInitializing) {
+    isInitializing = true;
+    client.initialize()
+      .catch(err => {
+        console.error('❌ WhatsApp init error:', err.message);
+        console.warn('⚠️ Server continues without WhatsApp. Fix the error and restart.');
+      })
+      .finally(() => {
+        isInitializing = false;
+      });
+  }
 
   return client;
 };
@@ -102,4 +119,21 @@ const sendWhatsAppWebJS = async (phone, message) => {
 const getStatus = () => ({ connected: isReady, hasQR: !!qrCodeData });
 const getQRCode = () => qrCodeData;
 
-module.exports = { initWhatsApp, sendWhatsAppWebJS, getStatus, getQRCode };
+const reconnectWhatsApp = async () => {
+  try {
+    isReady = false;
+    qrCodeData = null;
+
+    if (client) {
+      await client.destroy();
+    }
+
+    client = null;
+    initWhatsApp();
+    return { success: true, message: 'WhatsApp reconnect started' };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+};
+
+module.exports = { initWhatsApp, sendWhatsAppWebJS, getStatus, getQRCode, reconnectWhatsApp };

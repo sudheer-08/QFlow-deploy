@@ -12,6 +12,46 @@
   --qf-accent: #00a6a6;
   --qf-border: #dbe4f0;
   --qf-shadow: 0 14px 40px rgba(10, 30, 80, 0.08);
+
+  /* Premium design tokens */
+  --ui-bg-soft: #f3f6ff;
+  --ui-surface: #ffffff;
+  --ui-text-1: #11142f;
+  --ui-text-2: #5f6c97;
+  --ui-text-3: #8a95b7;
+  --ui-border: #d8dff7;
+  --ui-primary: #1452ff;
+  --ui-primary-strong: #0f4df5;
+  --ui-accent: #00b48d;
+  --ui-success: #128a63;
+  --ui-warning: #b6720a;
+  --ui-danger: #be2845;
+
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 14px;
+  --ui-radius-lg: 20px;
+  --ui-radius-xl: 24px;
+
+  --ui-shadow-1: 0 10px 24px rgba(18, 84, 255, 0.14);
+  --ui-shadow-2: 0 18px 38px rgba(19, 27, 63, 0.12);
+  --ui-shadow-3: 0 22px 54px rgba(17, 20, 47, 0.14);
+
+  --ui-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ui-duration-fast: 180ms;
+  --ui-duration-medium: 260ms;
+
+  --ui-space-1: 8px;
+  --ui-space-2: 12px;
+  --ui-space-3: 16px;
+  --ui-space-4: 20px;
+
+  --ui-font-xs: 0.72rem;
+  --ui-font-sm: 0.82rem;
+  --ui-font-md: 0.92rem;
+  --ui-font-lg: 1.08rem;
+  --ui-font-xl: 1.34rem;
+
+  --ui-focus-ring: 2px solid var(--ui-primary);
   font-family: "Manrope", "Segoe UI", sans-serif;
   color: var(--qf-text);
   background: var(--qf-bg);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../components/Toast';
+import './PinLoginPage.css';
 
 const ROLE_REDIRECTS = {
   receptionist: '/reception',
@@ -68,64 +69,67 @@ export default function PinLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
-      <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-sm">
+    <div className="pin-shell">
+      <div className="pin-orb pin-orb-left" />
+      <div className="pin-orb pin-orb-right" />
 
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-            <span className="text-white font-black text-2xl">Q</span>
-          </div>
-          <h1 className="text-xl font-bold text-gray-800">QFlow Staff Login</h1>
-          <p className="text-gray-400 text-sm mt-1">Quick PIN access for clinic staff</p>
+      <div className="pin-card">
+        <div className="pin-brand">
+          <div className="pin-logo">Q</div>
+          <h1>QFlow PIN Access</h1>
+          <p>Fast login for reception and clinic staff.</p>
         </div>
 
         {step === 'tenant' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Clinic ID
+          <div className="pin-step">
+            <label className="pin-field">
+              <span>Clinic ID</span>
+              <input
+                value={tenantId}
+                onChange={e => setTenantId(e.target.value)}
+                placeholder="Enter your clinic ID"
+                autoComplete="organization"
+              />
             </label>
-            <input
-              value={tenantId}
-              onChange={e => setTenantId(e.target.value)}
-              placeholder="Enter your clinic ID"
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-400 mb-4"
-            />
+
             <button
+              type="button"
+              className="pin-submit"
               onClick={() => {
                 if (!tenantId.trim()) return toast.error('Enter clinic ID');
                 setStep('pin');
                 setTimeout(() => document.getElementById('pin-0')?.focus(), 100);
               }}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-700">
-              Continue →
+            >
+              Continue
             </button>
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => navigate('/login')}
-                className="text-xs text-gray-400 hover:text-gray-600">
-                Login with email & password instead
+
+            <div className="pin-links">
+              <button type="button" onClick={() => navigate('/login')}>
+                Use email and password
               </button>
             </div>
           </div>
         )}
 
         {step === 'pin' && (
-          <div>
-            <div className="flex items-center gap-2 mb-6">
+          <div className="pin-step">
+            <div className="pin-head-row">
               <button
-                onClick={() => { setStep('tenant'); setPin(['','','','']); }}
-                className="text-gray-400 hover:text-gray-600 text-sm">
-                ← Back
+                type="button"
+                onClick={() => {
+                  setStep('tenant');
+                  setPin(['', '', '', '']);
+                }}
+              >
+                Back
               </button>
+              <p>{tenantId}</p>
             </div>
 
-            <p className="text-center text-gray-600 text-sm mb-6">
-              Enter your 4-digit staff PIN
-            </p>
+            <p className="pin-helper">Enter your 4-digit staff PIN</p>
 
-            {/* PIN inputs */}
-            <div className="flex justify-center gap-3 mb-8">
+            <div className="pin-inputs">
               {pin.map((digit, idx) => (
                 <input
                   key={idx}
@@ -136,22 +140,18 @@ export default function PinLoginPage() {
                   value={digit}
                   onChange={e => handlePinInput(e.target.value, idx)}
                   onKeyDown={e => handleKeyDown(e, idx)}
-                  className={`w-14 h-14 text-center text-2xl font-bold border-2 rounded-2xl focus:outline-none transition-all ${
-                    digit
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 focus:border-blue-400'
-                  }`}
+                  className={digit ? 'is-filled' : ''}
                 />
               ))}
             </div>
 
-            {/* Number pad */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((num, i) => (
+            <div className="pin-pad">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'DEL'].map((num, i) => (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => {
-                    if (num === '⌫') {
+                    if (num === 'DEL') {
                       const lastFilled = [...pin].reverse().findIndex(d => d !== '');
                       if (lastFilled !== -1) {
                         const idx = 3 - lastFilled;
@@ -167,30 +167,19 @@ export default function PinLoginPage() {
                       }
                     }
                   }}
-                  disabled={num === ''}
-                  className={`h-12 rounded-xl font-semibold text-lg transition-all ${
-                    num === ''
-                      ? 'invisible'
-                      : num === '⌫'
-                        ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        : 'bg-gray-50 text-gray-800 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-100'
-                  }`}>
+                  disabled={num === '' || loading}
+                  className={num === '' ? 'is-gap' : num === 'DEL' ? 'is-delete' : ''}
+                >
                   {num}
                 </button>
               ))}
             </div>
 
-            {loading && (
-              <p className="text-center text-blue-600 text-sm animate-pulse">
-                Verifying PIN...
-              </p>
-            )}
+            {loading && <p className="pin-loading">Verifying PIN...</p>}
 
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => navigate('/login')}
-                className="text-xs text-gray-400 hover:text-gray-600">
-                Login with email & password instead
+            <div className="pin-links">
+              <button type="button" onClick={() => navigate('/login')}>
+                Use email and password
               </button>
             </div>
           </div>

@@ -3,7 +3,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../models/supabase');
-const { assert, isEmail, isNonEmptyString, isPhone } = require('../utils/validation');
+const {
+  assert,
+  isEmail,
+  isNonEmptyString,
+  isPhone,
+  isStrongPassword,
+  isSubdomain,
+  isTimeHHMM,
+  normalizeEmail,
+  normalizePhone
+} = require('../utils/validation');
 const { queueWhatsAppSend } = require('../jobs/reminders');
 
 // ─── Helper: generate tokens ──────────────────────────
@@ -36,20 +46,31 @@ router.post('/register-clinic', async (req, res) => {
       openTime, closeTime, doctors
     } = req.body;
 
+    const cleanSubdomain = typeof subdomain === 'string' ? subdomain.trim().toLowerCase() : '';
+    const cleanAdminEmail = normalizeEmail(adminEmail);
+    const cleanAdminPhone = phone ? normalizePhone(phone) : null;
+    const cleanAdminName = typeof adminName === 'string' ? adminName.trim() : adminName;
+
     assert(isNonEmptyString(clinicName, 100), 'Clinic name is required');
-    assert(isNonEmptyString(subdomain, 50), 'Valid subdomain is required');
-    assert(isEmail(adminEmail), 'Valid admin email is required');
-    assert(isNonEmptyString(adminName, 100), 'Admin name is required');
-    assert(isNonEmptyString(adminPassword, 128) && adminPassword.length >= 8, 'Password must be at least 8 characters');
+    assert(isSubdomain(cleanSubdomain), 'Subdomain must be 3-50 chars using lowercase letters, numbers, or hyphen');
+    assert(isEmail(cleanAdminEmail), 'Valid admin email is required');
+    assert(isNonEmptyString(cleanAdminName, 100), 'Admin name is required');
+    assert(isStrongPassword(adminPassword), 'Password must be 8+ chars with uppercase, lowercase, number, and special character');
     if (phone) {
-      assert(isPhone(phone), 'Phone number is invalid');
+      assert(isPhone(cleanAdminPhone), 'Phone number is invalid');
+    }
+    if (openTime) {
+      assert(isTimeHHMM(openTime), 'openTime must be in HH:MM format');
+    }
+    if (closeTime) {
+      assert(isTimeHHMM(closeTime), 'closeTime must be in HH:MM format');
     }
 
     // 1. Check subdomain is unique
     const { data: existing } = await supabase
       .from('tenants')
       .select('id')
-      .eq('subdomain', subdomain)
+      .eq('subdomain', cleanSubdomain)
       .single();
 
     if (existing) {
@@ -60,7 +81,7 @@ router.post('/register-clinic', async (req, res) => {
     const { data: existingEmail } = await supabase
       .from('users')
       .select('id')
-      .eq('email', adminEmail)
+      .eq('email', cleanAdminEmail)
       .single();
 
     if (existingEmail) {
@@ -73,13 +94,13 @@ router.post('/register-clinic', async (req, res) => {
       .insert({
         id: uuidv4(),
         name: clinicName,
-        subdomain,
+        subdomain: cleanSubdomain,
         is_active: true,
         address: address || null,
         city: city || 'Chandigarh',
         lat: lat || null,
         lng: lng || null,
-        phone: phone || null,
+        phone: cleanAdminPhone,
         specialization: specialization || 'Dental',
         open_time: openTime || '09:00',
         close_time: closeTime || '20:00',
@@ -99,8 +120,8 @@ router.post('/register-clinic', async (req, res) => {
       .insert({
         id: uuidv4(),
         tenant_id: tenant.id,
-        name: adminName,
-        email: adminEmail,
+        name: cleanAdminName,
+        email: cleanAdminEmail,
         password_hash: passwordHash,
         role: 'clinic_admin',
         is_active: true
@@ -118,7 +139,7 @@ router.post('/register-clinic', async (req, res) => {
           id: uuidv4(),
           tenant_id: tenant.id,
           name: d.name,
-          email: `doctor_${uuidv4().slice(0,8)}@${subdomain}.qflow`,
+          email: `doctor_${uuidv4().slice(0,8)}@${cleanSubdomain}.qflow`,
           password_hash: passwordHash,
           role: 'doctor',
           specialization: d.specialization || 'General Dentistry',
@@ -147,14 +168,14 @@ router.post('/register-clinic', async (req, res) => {
     }
 
     // 6. Send welcome message
-    if (phone) {
+    if (cleanAdminPhone) {
       queueWhatsAppSend(
-        phone,
+        cleanAdminPhone,
         `🎉 Welcome to QFlow!\n\n` +
         `*${clinicName}* is now registered.\n\n` +
-        `Your clinic page: ${process.env.FRONTEND_URL}/clinic/${subdomain}\n` +
+        `Your clinic page: ${process.env.FRONTEND_URL}/clinic/${cleanSubdomain}\n` +
         `Admin dashboard: ${process.env.FRONTEND_URL}/admin\n\n` +
-        `Login: ${adminEmail}\n\n` +
+        `Login: ${cleanAdminEmail}\n\n` +
         `Start accepting appointments today! 🦷`
       ).catch((waErr) => {
         console.error('Error queueing welcome WhatsApp:', waErr.message);
@@ -188,19 +209,22 @@ router.post('/register-clinic', async (req, res) => {
 router.post('/register-patient', async (req, res) => {
   try {
     const { name, phone, email, password, gender, dateOfBirth } = req.body;
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = phone ? normalizePhone(phone) : null;
+    const cleanName = typeof name === 'string' ? name.trim() : name;
 
-    assert(isNonEmptyString(name, 100), 'Name is required');
-    assert(isEmail(email), 'Valid email is required');
-    assert(isNonEmptyString(password, 128) && password.length >= 8, 'Password must be at least 8 characters');
+    assert(isNonEmptyString(cleanName, 100), 'Name is required');
+    assert(isEmail(cleanEmail), 'Valid email is required');
+    assert(isStrongPassword(password), 'Password must be 8+ chars with uppercase, lowercase, number, and special character');
     if (phone) {
-      assert(isPhone(phone), 'Phone number is invalid');
+      assert(isPhone(cleanPhone), 'Phone number is invalid');
     }
 
     // Check if email already exists
     const { data: existing } = await supabase
       .from('users')
       .select('id')
-      .eq('email', email)
+      .eq('email', cleanEmail)
       .single();
 
     if (existing) {
@@ -214,9 +238,9 @@ router.post('/register-patient', async (req, res) => {
       .insert({
         id: uuidv4(),
         tenant_id: null,
-        name,
-        phone: phone || null,
-        email,
+        name: cleanName,
+        phone: cleanPhone,
+        email: cleanEmail,
         password_hash: passwordHash,
         role: 'patient',
         gender: gender || null,
@@ -246,14 +270,16 @@ router.post('/register-patient', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    assert(isEmail(email), 'Valid email is required');
+    const cleanEmail = normalizeEmail(email);
+
+    assert(isEmail(cleanEmail), 'Valid email is required');
     assert(isNonEmptyString(password, 128), 'Password is required');
 
     // Find user by email
     const { data: user, error } = await supabase
       .from('users')
       .select('*, tenants(name, subdomain)')
-      .eq('email', email)
+      .eq('email', cleanEmail)
       .eq('is_active', true)
       .single();
 
