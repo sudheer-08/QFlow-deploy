@@ -43,7 +43,7 @@ const prodFormat = JSON.stringify({
   responseTime: ':response-time ms',
   contentLength: ':res[content-length]',
   userAgent: ':user-agent',
-  timestamp: new Date().toISOString()
+  timestamp: ':date[iso]'
 });
 
 /**
