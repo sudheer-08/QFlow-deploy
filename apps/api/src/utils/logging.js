@@ -27,22 +27,10 @@ const requestIdMiddleware = (req, res, next) => {
 morgan.token('request-id', (req) => req.id || '?');
 
 /**
- * Custom Morgan token for response time with units
- */
-const morganTokenResponseTime = morgan['response-time'];
-morgan.token('response-time-ms', (req, res) => {
-  const value = typeof morganTokenResponseTime === 'function'
-    ? morganTokenResponseTime(req, res, 0)
-    : undefined;
-
-  return value ? `${value}ms` : '-';
-});
-
-/**
  * Morgan format for development: More readable, includes colors
- * Format: :request-id :method :url :status :response-time-ms
+ * Format: :request-id :method :url :status :response-time ms
  */
-const devFormat = ':request-id :method :url :status :response-time-ms';
+const devFormat = ':request-id :method :url :status :response-time ms';
 
 /**
  * Morgan format for production: Structured JSON logs
@@ -52,7 +40,7 @@ const prodFormat = JSON.stringify({
   method: ':method',
   url: ':url',
   status: ':status',
-  responseTime: ':response-time-ms',
+  responseTime: ':response-time ms',
   contentLength: ':res[content-length]',
   userAgent: ':user-agent',
   timestamp: new Date().toISOString()
