@@ -243,11 +243,12 @@ router.post('/book', async (req, res) => {
     // 6. Get clinic + doctor name
     const { data: doctorData } = await supabase
       .from('users')
-      .select('name, tenants(name)')
+      .select('name, tenants(name, subdomain)')
       .eq('id', doctorId)
       .single();
 
     const clinicName = doctorData?.tenants?.name || 'the clinic';
+    const clinicSubdomain = doctorData?.tenants?.subdomain || null;
     const doctorName = doctorData?.name || 'the doctor';
 
     // 7. Send WhatsApp confirmation
@@ -286,6 +287,16 @@ router.post('/book', async (req, res) => {
       doctorName,
       priority
     });
+
+    // Also notify public clinic pages so patient-facing views refresh instantly.
+    if (clinicSubdomain) {
+      io.to(`clinic:${clinicSubdomain}`).emit('clinic:updated', {
+        type: 'appointment_booked',
+        date,
+        doctorId,
+        slotTime
+      });
+    }
 
     res.status(201).json({
       appointmentId: appointment.id,

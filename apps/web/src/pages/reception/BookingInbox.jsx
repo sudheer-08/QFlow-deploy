@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, Calendar, User, Phone, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/Toast';
+import { useAuthStore } from '../../store/authStore';
+import socket, { connectClinic } from '../../socket';
 
 const STATUS_COLORS = {
   pending:         'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -12,9 +14,10 @@ const STATUS_COLORS = {
 
 export default function BookingInbox() {
   const toast = useToast();
+  const { user } = useAuthStore();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('pending');
+  const [filter, setFilter] = useState('all');
   const [declineModal, setDeclineModal] = useState(null);
   const [suggestModal, setSuggestModal] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -22,6 +25,20 @@ export default function BookingInbox() {
   const [processing, setProcessing] = useState({});
 
   useEffect(() => { fetchBookings(); }, [filter]);
+
+  useEffect(() => {
+    if (!user?.tenantId || !user?.id || !user?.role) return;
+    connectClinic(user.tenantId, user.id, user.role);
+
+    const onAppointmentNew = () => {
+      fetchBookings();
+    };
+
+    socket.on('appointment:new', onAppointmentNew);
+    return () => {
+      socket.off('appointment:new', onAppointmentNew);
+    };
+  }, [user?.tenantId, user?.id, user?.role, filter]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -113,7 +130,7 @@ export default function BookingInbox() {
 
         {/* Filter Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          {['pending', 'confirmed', 'declined', 'pending_patient'].map(s => (
+          {['all', 'pending', 'confirmed', 'declined', 'pending_patient'].map(s => (
             <button key={s}
               onClick={() => setFilter(s)}
               className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
@@ -121,7 +138,7 @@ export default function BookingInbox() {
                   ? 'bg-blue-600 text-white shadow'
                   : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}>
-              {s === 'pending_patient' ? 'Awaiting Patient' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'all' ? 'All Bookings' : s === 'pending_patient' ? 'Awaiting Patient' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>
@@ -138,7 +155,9 @@ export default function BookingInbox() {
             <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No {filter} bookings</p>
             <p className="text-gray-400 text-sm mt-1">
-              {filter === 'pending'
+              {filter === 'all'
+                ? 'Bookings from patients and reception will appear here'
+                : filter === 'pending'
                 ? 'New bookings will appear here for review'
                 : 'Nothing to show'}
             </p>

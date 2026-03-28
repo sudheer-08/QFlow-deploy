@@ -17,4 +17,10 @@ export const connectTracker = (trackerToken) => {
   socket.emit('connect_tracker', { trackerToken })
 }
 
+// Connect public clinic and booking pages to clinic-specific room
+export const connectPublicClinic = (subdomain) => {
+  if (!socket.connected) socket.connect()
+  socket.emit('connect_public_clinic', { subdomain })
+}
+
 export default socket

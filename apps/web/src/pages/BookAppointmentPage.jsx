@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import VoiceInput from '../components/VoiceInput'
 import { useToast } from '../components/Toast'
 import { useAuthStore } from '../store/authStore'
 import { isEmail, isNonEmptyString, isPhone, normalizeEmail, normalizePhone } from '../utils/validation'
+import socket, { connectPublicClinic } from '../socket'
 import './BookAppointmentPage.css'
 
 const isUuid = (value) => {
@@ -30,6 +31,8 @@ export default function BookAppointmentPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const lastToastAtRef = useRef(0)
+  const queryClient = useQueryClient()
   const { user } = useAuthStore()
   const preselectedDoctor = searchParams.get('doctor')
 
@@ -46,6 +49,7 @@ export default function BookAppointmentPage() {
   })
   const [formError, setFormError] = useState('')
   const [booking, setBooking] = useState(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const selectedDoctorIdIsValid = isUuid(selected.doctorId)
 
   const validateDetailsStep = () => {
@@ -59,10 +63,16 @@ export default function BookAppointmentPage() {
     return ''
   }
 
-  const { data: clinic } = useQuery({
+  const { data: clinic, dataUpdatedAt: clinicUpdatedAt } = useQuery({
     queryKey: ['clinic', subdomain],
     queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${subdomain}`).then(r => r.json())
   })
+
+  useEffect(() => {
+    if (clinicUpdatedAt) {
+      setLastUpdatedAt(new Date(clinicUpdatedAt))
+    }
+  }, [clinicUpdatedAt])
 
   useEffect(() => {
     if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {
@@ -85,13 +95,50 @@ export default function BookAppointmentPage() {
     }
   }, [user])
 
-  const { data: slotsData, isLoading: loadingSlots } = useQuery({
+  useEffect(() => {
+    if (!subdomain) return
+    connectPublicClinic(subdomain)
+
+    const handleClinicUpdate = (payload) => {
+      queryClient.invalidateQueries({ queryKey: ['clinic', subdomain] })
+
+      if (payload?.type === 'appointment_booked') {
+        const now = Date.now()
+        if (now - lastToastAtRef.current > 6000) {
+          toast.success('New booking received. Slots updated.')
+          lastToastAtRef.current = now
+        }
+      }
+
+      if (selectedDoctorIdIsValid && selected.date) {
+        const matchesCurrentDoctor = !payload?.doctorId || payload.doctorId === selected.doctorId
+        const matchesCurrentDate = !payload?.date || payload.date === selected.date
+        if (matchesCurrentDoctor && matchesCurrentDate) {
+          queryClient.invalidateQueries({ queryKey: ['slots', selected.doctorId, selected.date] })
+        }
+      }
+    }
+
+    socket.on('clinic:updated', handleClinicUpdate)
+
+    return () => {
+      socket.off('clinic:updated', handleClinicUpdate)
+    }
+  }, [subdomain, queryClient, selected.doctorId, selected.date, selectedDoctorIdIsValid])
+
+  const { data: slotsData, isLoading: loadingSlots, dataUpdatedAt: slotsUpdatedAt } = useQuery({
     queryKey: ['slots', selected.doctorId, selected.date],
     queryFn: () =>
       fetch(`${import.meta.env.VITE_API_URL}/appointments/slots?doctorId=${encodeURIComponent(selected.doctorId)}&date=${selected.date}`)
         .then(r => r.json()),
     enabled: selectedDoctorIdIsValid && !!selected.date && step >= 2
   })
+
+  useEffect(() => {
+    if (slotsUpdatedAt) {
+      setLastUpdatedAt(new Date(slotsUpdatedAt))
+    }
+  }, [slotsUpdatedAt])
 
   const bookMutation = useMutation({
     mutationFn: (data) =>
@@ -360,6 +407,14 @@ export default function BookAppointmentPage() {
         <div>
           <h1>Book Appointment</h1>
           <p>{clinic?.name || 'Loading clinic...'}</p>
+          {lastUpdatedAt && (
+            <p className="ba-live-status">
+              <span className="ba-live-dot" />
+              <span>
+                Live updated: {lastUpdatedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </p>
+          )}
         </div>
         <div className="ba-progress">
           {[1, 2, 3, 4].map(s => (

@@ -1,20 +1,55 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import socket, { connectPublicClinic } from '../socket'
+import { useToast } from '../components/Toast'
 import './ClinicDetailPage.css'
 
 export default function ClinicDetailPage() {
   const { subdomain } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const lastToastAtRef = useRef(0)
   const [selectedDoctor, setSelectedDoctor] = useState(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
 
-  const { data: clinic, isLoading } = useQuery({
+  const { data: clinic, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['clinic-detail', subdomain],
     queryFn: () =>
       fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${subdomain}`)
         .then(r => r.json()),
     refetchInterval: 30000
   })
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastUpdatedAt(new Date(dataUpdatedAt))
+    }
+  }, [dataUpdatedAt])
+
+  useEffect(() => {
+    if (!subdomain) return
+    connectPublicClinic(subdomain)
+
+    const handleClinicUpdate = (payload) => {
+      queryClient.invalidateQueries({ queryKey: ['clinic-detail', subdomain] })
+
+      if (payload?.type === 'appointment_booked') {
+        const now = Date.now()
+        if (now - lastToastAtRef.current > 6000) {
+          toast.success('New booking received. Data refreshed.')
+          lastToastAtRef.current = now
+        }
+      }
+    }
+
+    socket.on('clinic:updated', handleClinicUpdate)
+
+    return () => {
+      socket.off('clinic:updated', handleClinicUpdate)
+    }
+  }, [subdomain, queryClient])
 
   if (isLoading) return (
     <div className="cd-state cd-state-loading">
@@ -48,6 +83,14 @@ export default function ClinicDetailPage() {
         <div>
           <div className="cd-top-name">{clinic.name}</div>
           <div className="cd-top-city">{clinic.city}</div>
+          {lastUpdatedAt && (
+            <div className="cd-live-status">
+              <span className="cd-live-dot" />
+              <span>
+                Live updated: {lastUpdatedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
+          )}
         </div>
       </header>
 

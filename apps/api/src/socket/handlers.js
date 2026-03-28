@@ -21,6 +21,15 @@ module.exports = (io) => {
       console.log(`Patient tracker connected: ${trackerToken}`);
     });
 
+    // ─── Public clinic page joins clinic room ──────────
+    // Fired when patient opens /clinic/:subdomain or /book/:subdomain
+    socket.on('connect_public_clinic', ({ subdomain }) => {
+      if (typeof subdomain !== 'string' || !subdomain.trim()) return;
+      const cleanSubdomain = subdomain.trim().toLowerCase();
+      socket.join(`clinic:${cleanSubdomain}`);
+      console.log(`Public clinic page connected: ${cleanSubdomain}`);
+    });
+
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${socket.id}`);
     });
