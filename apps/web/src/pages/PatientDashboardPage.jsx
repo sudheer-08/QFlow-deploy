@@ -17,7 +17,13 @@ export default function PatientDashboardPage() {
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ['my-appointments'],
-    queryFn: () => api.get('/appointments/my').then(r => r.data),
+    queryFn: () => api.get('/appointments/my').then((r) => {
+      // API returns paginated payload { page, pageSize, data: [] }.
+      // Keep fallback compatibility if a plain array is ever returned.
+      if (Array.isArray(r.data)) return r.data
+      if (Array.isArray(r.data?.data)) return r.data.data
+      return []
+    }),
     enabled: !!user
   })
 
