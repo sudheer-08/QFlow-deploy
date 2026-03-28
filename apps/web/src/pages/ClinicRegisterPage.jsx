@@ -143,8 +143,11 @@ export default function ClinicRegisterPage() {
 
   const canProceed = () => {
     if (step === 0) {
-      return isNonEmptyString(clinic.name, 100)
-        && isPhone(clinic.phone)
+      const cleanName = typeof clinic.name === 'string' ? clinic.name.trim() : clinic.name
+      const cleanPhone = normalizePhone(clinic.phone)
+
+      return isNonEmptyString(cleanName, 100)
+        && isPhone(cleanPhone)
         && isTimeHHMM(clinic.openTime)
         && isTimeHHMM(clinic.closeTime)
     }
@@ -158,6 +161,42 @@ export default function ClinicRegisterPage() {
     }
     return false
   }
+
+  const getAccountValidationMessage = () => {
+    if (step !== 3) return ''
+    if (!isNonEmptyString(clinic.adminName, 100)) return 'Enter admin name.'
+    if (!isEmail(clinic.email)) return 'Enter a valid admin email.'
+    if (!isStrongPassword(clinic.password)) return getStrongPasswordMessage()
+    if (clinic.password !== clinic.confirmPassword) return 'Password and confirm password must match.'
+    return ''
+  }
+
+  const passwordChecks = [
+    {
+      label: 'At least 8 characters',
+      pass: clinic.password.length >= 8
+    },
+    {
+      label: 'One uppercase letter (A-Z)',
+      pass: /[A-Z]/.test(clinic.password)
+    },
+    {
+      label: 'One lowercase letter (a-z)',
+      pass: /[a-z]/.test(clinic.password)
+    },
+    {
+      label: 'One number (0-9)',
+      pass: /\d/.test(clinic.password)
+    },
+    {
+      label: 'One special character',
+      pass: /[^A-Za-z0-9]/.test(clinic.password)
+    },
+    {
+      label: 'Password and confirm password match',
+      pass: !!clinic.password && !!clinic.confirmPassword && clinic.password === clinic.confirmPassword
+    }
+  ]
 
   const handleSubmit = async () => {
     const cleanName = clinic.name.trim()
@@ -440,6 +479,19 @@ export default function ClinicRegisterPage() {
               </label>
             ))}
 
+            <div className="cr-password-checklist">
+              {passwordChecks.map((rule) => (
+                <div key={rule.label} className={`cr-password-rule ${rule.pass ? 'is-pass' : 'is-fail'}`}>
+                  <span>{rule.pass ? '✓' : '•'}</span>
+                  <span>{rule.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {!!getAccountValidationMessage() && (
+              <div className="cr-tip">{getAccountValidationMessage()}</div>
+            )}
+
             <div className="cr-summary">
               <p className="cr-summary-title">Your clinic will get</p>
               <ul>
@@ -453,6 +505,24 @@ export default function ClinicRegisterPage() {
           </section>
         )}
       </main>
+
+      <div className="cr-inline-actions">
+        {step > 0 && (
+          <button type="button" className="cr-inline-back" onClick={() => setStep(step - 1)}>
+            Back
+          </button>
+        )}
+
+        {step < 3 ? (
+          <button type="button" className="cr-inline-next" onClick={() => canProceed() && setStep(step + 1)} disabled={!canProceed()}>
+            Next: {STEPS[step + 1]}
+          </button>
+        ) : (
+          <button type="button" className="cr-inline-submit" onClick={handleSubmit} disabled={!canProceed() || loading}>
+            {loading ? 'Registering...' : 'Register Clinic'}
+          </button>
+        )}
+      </div>
 
       <footer className="cr-footer">
         {step > 0 && (

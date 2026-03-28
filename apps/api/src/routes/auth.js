@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../models/supabase');
+const { authenticate, requireRole } = require('../middleware/auth');
 const {
   assert,
   isEmail,
@@ -338,9 +339,83 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// ─── GET /api/auth/me ─────────────────────────────────
-const { authenticate } = require('../middleware/auth');
+// ─── POST /api/auth/register-staff ───────────────────
+// Clinic admin creates receptionist/doctor accounts for their clinic
+router.post('/register-staff', authenticate, requireRole('clinic_admin'), async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+      role,
+      specialization,
+      experienceYears,
+      consultationFee
+    } = req.body;
 
+    const tenantId = req.user.tenantId;
+    const cleanName = typeof name === 'string' ? name.trim() : name;
+    const cleanEmail = normalizeEmail(email);
+
+    assert(isNonEmptyString(cleanName, 100), 'Name is required');
+    assert(isEmail(cleanEmail), 'Valid email is required');
+    assert(isStrongPassword(password), 'Password must be 8+ chars with uppercase, lowercase, number, and special character');
+    assert(['receptionist', 'doctor'].includes(role), 'Role must be receptionist or doctor');
+
+    const { data: existingEmail } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', cleanEmail)
+      .single();
+
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email already registered. Use a different email.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const { data: createdUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        id: uuidv4(),
+        tenant_id: tenantId,
+        name: cleanName,
+        email: cleanEmail,
+        password_hash: passwordHash,
+        role,
+        specialization: role === 'doctor' ? (specialization || 'General Dentistry') : null,
+        experience_years: role === 'doctor' ? (Number.parseInt(experienceYears, 10) || 5) : null,
+        is_active: true
+      })
+      .select('id, name, email, role, tenant_id, specialization, experience_years')
+      .single();
+
+    if (createError) throw createError;
+
+    if (role === 'doctor') {
+      await supabase
+        .from('doctor_slot_settings')
+        .insert({
+          id: uuidv4(),
+          tenant_id: tenantId,
+          doctor_id: createdUser.id,
+          slot_duration_mins: 20,
+          consultation_fee: Number.parseInt(consultationFee, 10) || 300,
+          is_accepting_appointments: true
+        });
+    }
+
+    res.status(201).json({
+      message: 'Staff account created successfully',
+      staff: createdUser
+    });
+  } catch (err) {
+    console.error('Register staff error:', err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Failed to create staff account' });
+  }
+});
+
+// ─── GET /api/auth/me ─────────────────────────────────
 router.get('/me', authenticate, async (req, res) => {
   const { data: user } = await supabase
     .from('users')

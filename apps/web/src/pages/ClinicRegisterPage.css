@@ -343,6 +343,73 @@
   font-size: var(--ui-font-sm);
 }
 
+.cr-password-checklist {
+  border: 1px solid #dbe5ff;
+  background: #f7faff;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.cr-password-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-font-sm);
+}
+
+.cr-password-rule.is-pass {
+  color: #14734a;
+}
+
+.cr-password-rule.is-fail {
+  color: #6d789d;
+}
+
+.cr-inline-actions {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.cr-inline-back,
+.cr-inline-next,
+.cr-inline-submit {
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: var(--ui-font-md);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cr-inline-back {
+  flex: 0 0 88px;
+  background: #edf2ff;
+  color: #5f6c97;
+}
+
+.cr-inline-next,
+.cr-inline-submit {
+  flex: 1;
+  color: #fff;
+  background: linear-gradient(135deg, var(--ui-primary), #0f88c8);
+}
+
+.cr-inline-submit {
+  background: linear-gradient(135deg, #0f9d6d, #07b989);
+}
+
+.cr-inline-next:disabled,
+.cr-inline-submit:disabled {
+  background: #dce3f8;
+  color: #8d97b9;
+  cursor: not-allowed;
+}
+
 .cr-footer {
   position: fixed;
   left: 0;
@@ -396,12 +463,17 @@
 .cr-chip:hover,
 .cr-add:hover,
 .cr-remove:hover,
+.cr-inline-back:hover,
+.cr-inline-next:hover,
+.cr-inline-submit:hover,
 .cr-footer-back:hover,
 .cr-footer-next:hover,
 .cr-footer-submit:hover {
   transform: translateY(-1px);
 }
 
+.cr-inline-next:hover,
+.cr-inline-submit:hover,
 .cr-footer-next:hover,
 .cr-footer-submit:hover {
   box-shadow: var(--ui-shadow-1);
@@ -412,6 +484,9 @@
 .cr-location-btn:focus-visible,
 .cr-add:focus-visible,
 .cr-remove:focus-visible,
+.cr-inline-back:focus-visible,
+.cr-inline-next:focus-visible,
+.cr-inline-submit:focus-visible,
 .cr-footer-back:focus-visible,
 .cr-footer-next:focus-visible,
 .cr-footer-submit:focus-visible {

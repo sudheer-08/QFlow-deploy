@@ -17,6 +17,16 @@ export default function PinManager() {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'receptionist',
+    specialization: 'General Dentistry',
+    experienceYears: '5',
+    consultationFee: '300'
+  });
 
   useEffect(() => { fetchStaff(); }, []);
 
@@ -57,6 +67,41 @@ export default function PinManager() {
     }
   };
 
+  const createStaffAccount = async () => {
+    if (!newStaff.name.trim()) return toast.error('Staff name is required');
+    if (!newStaff.email.trim()) return toast.error('Staff email is required');
+    if (!newStaff.password) return toast.error('Staff password is required');
+
+    setCreatingStaff(true);
+    try {
+      await api.post('/auth/register-staff', {
+        name: newStaff.name.trim(),
+        email: newStaff.email.trim().toLowerCase(),
+        password: newStaff.password,
+        role: newStaff.role,
+        specialization: newStaff.role === 'doctor' ? newStaff.specialization : undefined,
+        experienceYears: newStaff.role === 'doctor' ? newStaff.experienceYears : undefined,
+        consultationFee: newStaff.role === 'doctor' ? newStaff.consultationFee : undefined
+      });
+
+      toast.success(`${newStaff.role === 'doctor' ? 'Doctor' : 'Receptionist'} account created`);
+      setNewStaff({
+        name: '',
+        email: '',
+        password: '',
+        role: 'receptionist',
+        specialization: 'General Dentistry',
+        experienceYears: '5',
+        consultationFee: '300'
+      });
+      fetchStaff();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to create staff account');
+    } finally {
+      setCreatingStaff(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto">
@@ -66,6 +111,75 @@ export default function PinManager() {
           <p className="text-gray-500 text-sm">
             Set 4-digit PINs for quick staff login at the reception desk
           </p>
+        </div>
+
+        {/* Create staff account */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Create Staff Account</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
+              value={newStaff.name}
+              onChange={(e) => setNewStaff((prev) => ({ ...prev, name: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+              placeholder="Full name"
+            />
+            <input
+              type="email"
+              value={newStaff.email}
+              onChange={(e) => setNewStaff((prev) => ({ ...prev, email: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+              placeholder="email@clinic.com"
+            />
+            <input
+              type="password"
+              value={newStaff.password}
+              onChange={(e) => setNewStaff((prev) => ({ ...prev, password: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+              placeholder="Strong password"
+            />
+            <select
+              value={newStaff.role}
+              onChange={(e) => setNewStaff((prev) => ({ ...prev, role: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+            >
+              <option value="receptionist">Receptionist</option>
+              <option value="doctor">Doctor</option>
+            </select>
+
+            {newStaff.role === 'doctor' && (
+              <>
+                <input
+                  value={newStaff.specialization}
+                  onChange={(e) => setNewStaff((prev) => ({ ...prev, specialization: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+                  placeholder="Specialization"
+                />
+                <input
+                  type="number"
+                  value={newStaff.experienceYears}
+                  onChange={(e) => setNewStaff((prev) => ({ ...prev, experienceYears: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm"
+                  placeholder="Experience years"
+                />
+                <input
+                  type="number"
+                  value={newStaff.consultationFee}
+                  onChange={(e) => setNewStaff((prev) => ({ ...prev, consultationFee: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm md:col-span-2"
+                  placeholder="Consultation fee"
+                />
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={createStaffAccount}
+            disabled={creatingStaff}
+            className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {creatingStaff ? 'Creating...' : 'Create Staff Account'}
+          </button>
         </div>
 
         {/* Info banner */}
