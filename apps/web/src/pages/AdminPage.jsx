@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import api from '../services/api'
@@ -6,8 +7,15 @@ import { Link } from 'react-router-dom'
 
 export default function AdminPage() {
   const { user, logout } = useAuthStore()
+  const [now, setNow] = useState(Date.now())
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
-  const { data: summary } = useQuery({
+  const {
+    data: summary,
+    isFetching: isSummaryFetching,
+    isError: isSummaryError,
+    dataUpdatedAt: summaryUpdatedAt
+  } = useQuery({
     queryKey: ['summary-today'],
     queryFn: () => api.get('/analytics/summary/today').then(r => r.data),
     refetchInterval: 30000
@@ -17,6 +25,34 @@ export default function AdminPage() {
     queryKey: ['wait-trends'],
     queryFn: () => api.get('/analytics/wait-times?days=14').then(r => r.data)
   })
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
+  const syncState = useMemo(() => {
+    if (!isOnline) return { label: 'Offline', tone: 'bg-red-100 text-red-700 border-red-200' }
+    if (isSummaryFetching || isSummaryError) return { label: 'Reconnecting', tone: 'bg-amber-100 text-amber-700 border-amber-200' }
+    return { label: 'Connected', tone: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+  }, [isOnline, isSummaryFetching, isSummaryError])
+
+  const lastSyncLabel = summaryUpdatedAt
+    ? new Date(summaryUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : 'Not synced yet'
+
+  const dataAgeSeconds = summaryUpdatedAt ? Math.max(0, Math.floor((now - summaryUpdatedAt) / 1000)) : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -31,6 +67,13 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2">
+            <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${syncState.tone}`}>
+              {syncState.label}
+            </span>
+            <span className="text-xs text-gray-500">Last sync: {lastSyncLabel}</span>
+            <span className="text-xs text-gray-400">Data age: {dataAgeSeconds !== null ? `${dataAgeSeconds}s` : 'n/a'}</span>
+          </div>
           <a href="/display" target="_blank"
             className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
             📺 Display Board

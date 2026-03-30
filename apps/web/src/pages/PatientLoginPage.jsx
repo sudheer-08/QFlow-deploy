@@ -163,6 +163,11 @@ export default function PatientLoginPage() {
           Prefer browsing first?
           <button type="button" onClick={() => navigate('/')}> Find clinics</button>
         </p>
+
+        <p className="pl-footnote pl-footnote-alt">
+          Clinic staff or admin?
+          <button type="button" onClick={() => navigate('/login')}> Staff login</button>
+        </p>
       </div>
     </div>
   )

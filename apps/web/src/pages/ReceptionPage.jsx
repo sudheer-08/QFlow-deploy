@@ -10,6 +10,9 @@ export default function ReceptionPage() {
   const { user, logout } = useAuthStore()
   const toast = useToast()
   const queryClient = useQueryClient()
+  const [now, setNow] = useState(Date.now())
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [isSocketConnected, setIsSocketConnected] = useState(socket.connected)
   const [form, setForm] = useState({
     patientName: '', phone: '', symptoms: '',
     doctorId: '', isEmergency: false
@@ -25,18 +28,42 @@ export default function ReceptionPage() {
   })
 
   // Fetch live queue
-  const { data: queue = [] } = useQuery({
+  const {
+    data: queue = [],
+    isFetching: isQueueFetching,
+    dataUpdatedAt: queueUpdatedAt
+  } = useQuery({
     queryKey: ['queue-live'],
     queryFn: () => api.get('/queue/live').then(r => r.data),
     refetchInterval: 30000
   })
 
   // Today's summary
-  const { data: summary } = useQuery({
+  const {
+    data: summary,
+    isFetching: isSummaryFetching,
+    dataUpdatedAt: summaryUpdatedAt
+  } = useQuery({
     queryKey: ['summary-today'],
     queryFn: () => api.get('/analytics/summary/today').then(r => r.data),
     refetchInterval: 30000
   })
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
 
   // Register patient mutation
   const registerMutation = useMutation({
@@ -52,6 +79,12 @@ export default function ReceptionPage() {
   // Socket.io — real-time updates
   useEffect(() => {
     connectClinic(user.tenantId, user.id, user.role)
+
+    const handleSocketConnect = () => setIsSocketConnected(true)
+    const handleSocketDisconnect = () => setIsSocketConnected(false)
+
+    socket.on('connect', handleSocketConnect)
+    socket.on('disconnect', handleSocketDisconnect)
     socket.on('queue:patient_added', () => {
       queryClient.invalidateQueries(['queue-live'])
       queryClient.invalidateQueries(['summary-today'])
@@ -68,6 +101,8 @@ export default function ReceptionPage() {
       queryClient.invalidateQueries(['queue-live'])
     })
     return () => {
+      socket.off('connect', handleSocketConnect)
+      socket.off('disconnect', handleSocketDisconnect)
       socket.off('queue:patient_added')
       socket.off('queue:token_called')
       socket.off('queue:entry_completed')
@@ -75,6 +110,18 @@ export default function ReceptionPage() {
       socket.off('patient:arrived')
     }
   }, [])
+
+  const latestSyncAt = Math.max(summaryUpdatedAt || 0, queueUpdatedAt || 0)
+  const lastSyncLabel = latestSyncAt
+    ? new Date(latestSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : 'Not synced yet'
+  const dataAgeSeconds = latestSyncAt ? Math.max(0, Math.floor((now - latestSyncAt) / 1000)) : null
+
+  const syncState = !isOnline
+    ? { label: 'Offline', tone: 'bg-red-100 text-red-700 border-red-200' }
+    : (!isSocketConnected || isQueueFetching || isSummaryFetching)
+      ? { label: 'Reconnecting', tone: 'bg-amber-100 text-amber-700 border-amber-200' }
+      : { label: 'Connected', tone: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
 
   const markNoShow = async (entryId) => {
     setNoShowLoading(p => ({ ...p, [entryId]: true }))
@@ -134,9 +181,18 @@ export default function ReceptionPage() {
           </Link>
         </div>
 
-        <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
-          Sign out
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2">
+            <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${syncState.tone}`}>
+              {syncState.label}
+            </span>
+            <span className="text-xs text-gray-500">Last sync: {lastSyncLabel}</span>
+            <span className="text-xs text-gray-400">Data age: {dataAgeSeconds !== null ? `${dataAgeSeconds}s` : 'n/a'}</span>
+          </div>
+          <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
+            Sign out
+          </button>
+        </div>
       </header>
 
       {/* Arrived alert */}

@@ -166,8 +166,11 @@ export default function PatientHomePage() {
           <button className="ph-btn ph-btn-secondary" onClick={() => navigate('/register-clinic')}>
             + List Clinic
           </button>
+          <button className="ph-btn ph-btn-secondary" onClick={() => navigate('/login')}>
+            Clinic Staff Login
+          </button>
           <button className="ph-btn ph-btn-primary" onClick={() => navigate('/patient/login')}>
-            Sign In
+            Patient Sign In
           </button>
         </div>
       </header>

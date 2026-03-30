@@ -200,6 +200,10 @@
   font-size: var(--ui-font-sm);
 }
 
+.pl-footnote-alt {
+  margin-top: 8px;
+}
+
 .pl-footnote button {
   border: none;
   background: transparent;
