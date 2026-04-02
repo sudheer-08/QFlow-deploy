@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { queueWhatsAppSend, scheduleRatingRequest } = require('../jobs/reminders');
+const { queueNotificationSend, scheduleRatingRequest } = require('../jobs/reminders');
 
 router.use(authenticate);
 
@@ -52,13 +52,15 @@ router.post('/complete/:entryId', requireRole('doctor', 'clinic_admin'), async (
       .select()
       .single();
 
-    // Send prescription via WhatsApp
+    // Send prescription via notification
     if (send_prescription && entry.patient?.phone) {
       const medList = Array.isArray(medicines)
         ? medicines.map(m => `• ${m.name} — ${m.dosage} (${m.duration})`).join('\n')
         : medicines;
 
-      queueWhatsAppSend(entry.patient.phone,
+      queueNotificationSend({
+        phone: entry.patient.phone,
+        message:
 `💊 *${entry.tenant?.name} — Your Prescription*
 
 Patient: ${entry.patient?.name}
@@ -76,9 +78,9 @@ ${follow_up_date ? `📅 *Follow-up:* ${new Date(follow_up_date).toLocaleDateStr
 
 Get well soon! 🙏
 — ${entry.tenant?.name}`
-  ).catch((waErr) => {
-    console.error('Error queueing prescription WhatsApp:', waErr.message);
-  });
+      }).catch((err) => {
+        console.error('Error queueing prescription notification:', err.message);
+      });
     }
 
     // Create follow-up if date set

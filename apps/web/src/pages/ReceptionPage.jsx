@@ -5,6 +5,11 @@ import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import socket, { connectClinic } from '../socket'
 import { useToast } from '../components/Toast'
+import {
+  Users, Clock, Stethoscope, CheckCircle2, Smartphone,
+  LogOut, Wifi, WifiOff, RefreshCw,
+  UserPlus, AlertTriangle, Inbox, List
+} from 'lucide-react'
 
 export default function ReceptionPage() {
   const { user, logout } = useAuthStore()
@@ -21,13 +26,11 @@ export default function ReceptionPage() {
   const [arrivedAlert, setArrivedAlert] = useState(null)
   const [noShowLoading, setNoShowLoading] = useState({})
 
-  // Fetch doctors list
   const { data: doctors = [] } = useQuery({
     queryKey: ['doctors'],
     queryFn: () => api.get('/queue/doctors').then(r => r.data)
   })
 
-  // Fetch live queue
   const {
     data: queue = [],
     isFetching: isQueueFetching,
@@ -38,7 +41,6 @@ export default function ReceptionPage() {
     refetchInterval: 30000
   })
 
-  // Today's summary
   const {
     data: summary,
     isFetching: isSummaryFetching,
@@ -65,7 +67,6 @@ export default function ReceptionPage() {
     }
   }, [])
 
-  // Register patient mutation
   const registerMutation = useMutation({
     mutationFn: (data) => api.post('/queue/register', data),
     onSuccess: (res) => {
@@ -76,7 +77,6 @@ export default function ReceptionPage() {
     }
   })
 
-  // Socket.io — real-time updates
   useEffect(() => {
     connectClinic(user.tenantId, user.id, user.role)
 
@@ -118,10 +118,10 @@ export default function ReceptionPage() {
   const dataAgeSeconds = latestSyncAt ? Math.max(0, Math.floor((now - latestSyncAt) / 1000)) : null
 
   const syncState = !isOnline
-    ? { label: 'Offline', tone: 'bg-red-100 text-red-700 border-red-200' }
+    ? { label: 'Offline', cls: 'qf-sync-offline', Icon: WifiOff }
     : (!isSocketConnected || isQueueFetching || isSummaryFetching)
-      ? { label: 'Reconnecting', tone: 'bg-amber-100 text-amber-700 border-amber-200' }
-      : { label: 'Connected', tone: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+      ? { label: 'Reconnecting', cls: 'qf-sync-reconnecting', Icon: RefreshCw }
+      : { label: 'Connected', cls: 'qf-sync-connected', Icon: Wifi }
 
   const markNoShow = async (entryId) => {
     setNoShowLoading(p => ({ ...p, [entryId]: true }))
@@ -137,258 +137,267 @@ export default function ReceptionPage() {
     }
   }
 
-  const priorityColor = (p) => ({
-    critical: 'bg-red-100 text-red-700 border-red-200',
-    moderate: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    routine:  'bg-green-100 text-green-700 border-green-200'
-  })[p] || 'bg-gray-100 text-gray-700'
+  const priorityConfig = {
+    critical: { cls: 'priority-critical', label: '🔴 Critical', badge: 'qf-badge-red' },
+    moderate: { cls: 'priority-moderate', label: '🟡 Moderate', badge: 'qf-badge-amber' },
+    routine:  { cls: 'priority-routine',  label: '🟢 Routine',  badge: 'qf-badge-green' }
+  }
 
-  const statusColor = (s) => ({
-    waiting:     'bg-blue-100 text-blue-700',
-    called:      'bg-orange-100 text-orange-700',
-    in_progress: 'bg-purple-100 text-purple-700',
-    done:        'bg-green-100 text-green-700'
-  })[s] || 'bg-gray-100 text-gray-700'
+  const statusConfig = {
+    waiting:     { badge: 'qf-badge-blue',   label: 'Waiting' },
+    called:      { badge: 'qf-badge-amber',  label: 'Called' },
+    in_progress: { badge: 'qf-badge-purple', label: 'In Progress' },
+    done:        { badge: 'qf-badge-green',  label: 'Done' }
+  }
+
+  const stats = [
+    { label: 'Total Today', value: summary?.total || 0, Icon: Users, bg: 'linear-gradient(135deg, #1e293b, #334155)' },
+    { label: 'Waiting', value: summary?.waiting || 0, Icon: Clock, bg: 'linear-gradient(135deg, #1452ff, #3b82f6)' },
+    { label: 'In Progress', value: summary?.inProgress || 0, Icon: Stethoscope, bg: 'linear-gradient(135deg, #7c3aed, #a855f7)' },
+    { label: 'Done', value: summary?.done || 0, Icon: CheckCircle2, bg: 'linear-gradient(135deg, #059669, #10b981)' },
+    { label: 'Remote', value: summary?.remote || 0, Icon: Smartphone, bg: 'linear-gradient(135deg, #4338ca, #6366f1)' },
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-
+    <div className="qf-staff-shell">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-lg">Q</span>
-          </div>
+      <header className="qf-staff-header">
+        <div className="qf-staff-brand">
+          <div className="qf-staff-logo">Q</div>
           <div>
-            <h1 className="font-bold text-gray-900">QFlow Reception</h1>
-            <p className="text-xs text-gray-500">{user?.clinicName}</p>
+            <div className="qf-staff-title">QFlow Reception</div>
+            <div className="qf-staff-subtitle">{user?.clinicName}</div>
           </div>
         </div>
 
-        {/* ✅ Nav links to new pages */}
-        <div className="hidden md:flex items-center gap-3">
-          <Link to="/reception/bookings"
-            className="text-sm text-gray-600 hover:text-blue-600 flex items-center gap-1">
-            📥 Bookings
-          </Link>
-          <Link to="/reception/waitlist"
-            className="text-sm text-gray-600 hover:text-blue-600 flex items-center gap-1">
-            📋 Waitlist
-          </Link>
-          <Link to="/reception/dashboard"
-            className="text-sm text-gray-600 hover:text-blue-600 flex items-center gap-1">
-            📊 Dashboard
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-4">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="hidden md:flex items-center gap-3">
+            <Link to="/reception/bookings" className="qf-btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Inbox size={14} /> Bookings
+            </Link>
+            <Link to="/reception/waitlist" className="qf-btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <List size={14} /> Waitlist
+            </Link>
+          </div>
           <div className="hidden md:flex items-center gap-2">
-            <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${syncState.tone}`}>
-              {syncState.label}
+            <span className={`qf-sync-badge ${syncState.cls}`}>
+              <syncState.Icon size={12} /> {syncState.label}
             </span>
-            <span className="text-xs text-gray-500">Last sync: {lastSyncLabel}</span>
-            <span className="text-xs text-gray-400">Data age: {dataAgeSeconds !== null ? `${dataAgeSeconds}s` : 'n/a'}</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--ui-text-3)' }}>
+              {lastSyncLabel} · {dataAgeSeconds !== null ? `${dataAgeSeconds}s` : 'n/a'}
+            </span>
           </div>
-          <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
-            Sign out
+          <button onClick={logout} className="qf-btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <LogOut size={14} /> Sign out
           </button>
         </div>
       </header>
 
       {/* Arrived alert */}
       {arrivedAlert && (
-        <div className="bg-green-500 text-white text-center py-3 px-6 font-medium animate-pulse">
+        <div style={{
+          background: 'linear-gradient(135deg, #059669, #10b981)',
+          color: '#fff', textAlign: 'center', padding: '12px 20px',
+          fontWeight: 700, fontSize: '0.88rem',
+          animation: 'fadeInUp 0.3s ease-out'
+        }}>
           ✅ {arrivedAlert}
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="qf-staff-body" style={{ display: 'grid', gap: 20 }}>
 
-        {/* Stats bar */}
-        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-5 gap-4">
-          {[
-            { label: 'Total Today',    value: summary?.total || 0,      color: 'bg-gray-800 text-white' },
-            { label: 'Waiting',        value: summary?.waiting || 0,    color: 'bg-blue-600 text-white' },
-            { label: 'In Progress',    value: summary?.inProgress || 0, color: 'bg-purple-600 text-white' },
-            { label: 'Done',           value: summary?.done || 0,       color: 'bg-green-600 text-white' },
-            { label: 'Remote Patients',value: summary?.remote || 0,     color: 'bg-indigo-600 text-white' },
-          ].map(s => (
-            <div key={s.label} className={`${s.color} rounded-xl p-4 text-center`}>
-              <div className="text-3xl font-bold">{s.value}</div>
-              <div className="text-xs opacity-80 mt-1">{s.label}</div>
+        {/* Stats */}
+        <div className="qf-stat-grid qf-stagger">
+          {stats.map(s => (
+            <div key={s.label} className="qf-stat-card" style={{ background: s.bg, color: '#fff' }}>
+              <span className="qf-stat-icon"><s.Icon size={20} /></span>
+              <span className="qf-stat-value">{s.value}</span>
+              <span className="qf-stat-label">{s.label}</span>
             </div>
           ))}
         </div>
 
-        {/* Registration form */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <h2 className="font-bold text-gray-900 text-lg mb-5">Register Walk-in Patient</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="lg:grid-cols-3">
 
-          {registered && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5">
-              <p className="font-bold text-green-800 text-lg">Token: {registered.token}</p>
-              <p className="text-green-700 text-sm mt-1">Priority: {registered.priority}</p>
-              {registered.aiSummary && (
-                <p className="text-green-600 text-xs mt-1">AI: {registered.aiSummary}</p>
-              )}
+          {/* Registration form */}
+          <div className="qf-content-card lg:col-span-1">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+              <UserPlus size={18} style={{ color: 'var(--ui-primary)' }} />
+              <h2 style={{ margin: 0 }}>Register Walk-in Patient</h2>
+            </div>
+
+            {registered && (
+              <div style={{
+                borderRadius: 14, border: '1px solid #a5eacc',
+                background: 'linear-gradient(165deg, #f0fdf4, #dcfce7)',
+                padding: 16, marginBottom: 16
+              }}>
+                <p style={{ fontWeight: 800, color: '#065f46', fontSize: '1.1rem', margin: 0 }}>
+                  Token: {registered.token}
+                </p>
+                <p style={{ color: '#0d8c63', fontSize: '0.82rem', marginTop: 4 }}>
+                  Priority: {registered.priority}
+                </p>
+                {registered.aiSummary && (
+                  <p style={{ color: '#059669', fontSize: '0.75rem', marginTop: 4 }}>
+                    AI: {registered.aiSummary}
+                  </p>
+                )}
+                <button onClick={() => setRegistered(null)} className="qf-btn-ghost" style={{ marginTop: 8, fontSize: '0.78rem', color: '#059669' }}>
+                  Register another
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div>
+                <label className="qf-label">Patient Name *</label>
+                <input
+                  value={form.patientName}
+                  onChange={e => setForm({ ...form, patientName: e.target.value })}
+                  className="qf-input"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="qf-label">Phone (WhatsApp)</label>
+                <input
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                  className="qf-input"
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+              <div>
+                <label className="qf-label">Symptoms</label>
+                <textarea
+                  value={form.symptoms}
+                  onChange={e => setForm({ ...form, symptoms: e.target.value })}
+                  className="qf-input"
+                  rows={3}
+                  placeholder="Describe symptoms..."
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <div>
+                <label className="qf-label">Doctor</label>
+                <select
+                  value={form.doctorId}
+                  onChange={e => setForm({ ...form, doctorId: e.target.value })}
+                  className="qf-input"
+                >
+                  <option value="">Select doctor...</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.isEmergency}
+                  onChange={e => setForm({ ...form, isEmergency: e.target.checked })}
+                  style={{ width: 18, height: 18, accentColor: '#be2845' }}
+                />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#be2845', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle size={14} /> Mark as Emergency
+                </span>
+              </label>
               <button
-                onClick={() => setRegistered(null)}
-                className="text-xs text-green-600 underline mt-2">
-                Register another
+                onClick={() => registerMutation.mutate(form)}
+                disabled={!form.patientName || !form.doctorId || registerMutation.isPending}
+                className="qf-btn-primary"
+                style={{ width: '100%', padding: '13px', fontSize: '0.9rem' }}
+              >
+                {registerMutation.isPending ? 'Registering...' : 'Generate Token'}
               </button>
             </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Patient Name *
-              </label>
-              <input
-                value={form.patientName}
-                onChange={e => setForm({ ...form, patientName: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Full name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone (WhatsApp)
-              </label>
-              <input
-                value={form.phone}
-                onChange={e => setForm({ ...form, phone: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="+91 98765 43210"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Symptoms</label>
-              <textarea
-                value={form.symptoms}
-                onChange={e => setForm({ ...form, symptoms: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Describe symptoms..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-              <select
-                value={form.doctorId}
-                onChange={e => setForm({ ...form, doctorId: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select doctor...</option>
-                {doctors.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.isEmergency}
-                onChange={e => setForm({ ...form, isEmergency: e.target.checked })}
-                className="w-4 h-4 accent-red-600"
-              />
-              <span className="text-sm font-medium text-red-600">Mark as Emergency</span>
-            </label>
-            <button
-              onClick={() => registerMutation.mutate(form)}
-              disabled={!form.patientName || !form.doctorId || registerMutation.isPending}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors">
-              {registerMutation.isPending ? 'Registering...' : 'Generate Token'}
-            </button>
           </div>
-        </div>
 
-        {/* Live Queue */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-gray-900 text-lg">Live Queue</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">{queue.length} patients</span>
-              <Link to="/reception/waitlist"
-                className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1.5 rounded-lg hover:bg-yellow-100">
+          {/* Live Queue */}
+          <div className="qf-content-card lg:col-span-2">
+            <div className="qf-section-head">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                Live Queue
+                <span className="qf-badge qf-badge-blue">{queue.length}</span>
+              </h2>
+              <Link to="/reception/waitlist" className="qf-btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 14px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 📋 Waitlist
               </Link>
             </div>
+
+            {queue.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--ui-text-3)' }}>
+                <div style={{ fontSize: '3rem', marginBottom: 10 }}>🏥</div>
+                <p>Queue is empty</p>
+              </div>
+            ) : (
+              <div className="qf-scroll" style={{ display: 'grid', gap: 10, maxHeight: 600, overflowY: 'auto', paddingRight: 4 }}>
+                {queue.map((entry) => {
+                  const pCfg = priorityConfig[entry.priority] || priorityConfig.routine
+                  const sCfg = statusConfig[entry.status] || statusConfig.waiting
+                  return (
+                    <div key={entry.id} className={`qf-queue-card ${pCfg.cls}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                          <div style={{ textAlign: 'center', minWidth: 56 }}>
+                            <div style={{ fontFamily: 'Sora, sans-serif', fontWeight: 800, fontSize: '1.15rem', color: 'var(--ui-primary)' }}>
+                              {entry.token_number}
+                            </div>
+                            <span className={`qf-badge ${pCfg.badge}`} style={{ marginTop: 4 }}>{entry.priority}</span>
+                          </div>
+                          <div>
+                            <p style={{ margin: 0, fontWeight: 700, color: 'var(--ui-text-1)' }}>{entry.users?.name}</p>
+                            {entry.symptoms && (
+                              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--ui-text-2)' }}>
+                                {entry.symptoms.substring(0, 50)}
+                              </p>
+                            )}
+                            {entry.ai_summary && (
+                              <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#5b4cdb' }}>
+                                🤖 {entry.ai_summary}
+                              </p>
+                            )}
+                            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                              <span className={`qf-badge ${sCfg.badge}`}>{sCfg.label}</span>
+                              {entry.registration_type === 'self_registered' && (
+                                <span className="qf-badge qf-badge-indigo">📱 Remote</span>
+                              )}
+                              {entry.arrival_status === 'at_home' && (
+                                <span className="qf-badge qf-badge-amber">🏠 At home</span>
+                              )}
+                              {entry.arrival_status === 'arrived' && (
+                                <span className="qf-badge qf-badge-green">✅ Arrived</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--ui-text-3)' }}>
+                            {new Date(entry.registered_at).toLocaleTimeString([], {
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </span>
+                          {entry.status === 'waiting' && (
+                            <button
+                              onClick={() => markNoShow(entry.id)}
+                              disabled={noShowLoading[entry.id]}
+                              className="qf-btn-danger"
+                            >
+                              {noShowLoading[entry.id] ? '...' : '✗ No-show'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-
-          {queue.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-5xl mb-3">🏥</div>
-              <p>Queue is empty</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
-              {queue.map((entry) => (
-                <div key={entry.id}
-                  className="border rounded-xl p-4 flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="text-center min-w-[60px]">
-                      <div className="font-bold text-blue-600 text-lg">
-                        {entry.token_number}
-                      </div>
-                      <div className={`text-xs px-2 py-0.5 rounded-full border mt-1 ${priorityColor(entry.priority)}`}>
-                        {entry.priority}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{entry.users?.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {entry.symptoms?.substring(0, 50)}
-                      </p>
-                      {entry.ai_summary && (
-                        <p className="text-xs text-indigo-600 mt-1">
-                          🤖 {entry.ai_summary}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(entry.status)}`}>
-                          {entry.status}
-                        </span>
-                        {entry.registration_type === 'self_registered' && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                            📱 Remote
-                          </span>
-                        )}
-                        {entry.arrival_status === 'at_home' && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
-                            🏠 At home
-                          </span>
-                        )}
-                        {entry.arrival_status === 'arrived' && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                            ✅ Arrived
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ✅ Right side — time + no-show button */}
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <span className="text-xs text-gray-400">
-                      {new Date(entry.registered_at).toLocaleTimeString([], {
-                        hour: '2-digit', minute: '2-digit'
-                      })}
-                    </span>
-                    {entry.status === 'waiting' && (
-                      <button
-                        onClick={() => markNoShow(entry.id)}
-                        disabled={noShowLoading[entry.id]}
-                        className="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 disabled:opacity-50 whitespace-nowrap">
-                        {noShowLoading[entry.id] ? '...' : '✗ No-show'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-
       </div>
     </div>
   )

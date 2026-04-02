@@ -5,6 +5,10 @@ import { useAuthStore } from '../store/authStore'
 import socket, { connectClinic } from '../socket'
 import PatientBriefModal from '../components/PatientBriefModal'
 import { useToast } from '../components/Toast'
+import {
+  LogOut, Stethoscope, CheckCircle2, SkipForward,
+  FileText, Eye, CalendarPlus, User
+} from 'lucide-react'
 
 export default function DoctorPage() {
   const { user, logout } = useAuthStore()
@@ -17,7 +21,6 @@ export default function DoctorPage() {
   const [followUpReason, setFollowUpReason] = useState('')
   const [followUpSaving, setFollowUpSaving] = useState(false)
 
-  // Fetch doctor's own queue
   const { data: queue = [] } = useQuery({
     queryKey: ['doctor-queue'],
     queryFn: () => api.get(`/queue/doctor/${user.id}`).then(r => r.data),
@@ -26,7 +29,6 @@ export default function DoctorPage() {
 
   const waiting = queue.filter(e => e.status === 'waiting')
 
-  // Call patient
   const callMutation = useMutation({
     mutationFn: (entryId) => api.patch(`/queue/${entryId}/call`),
     onSuccess: (res) => {
@@ -35,7 +37,6 @@ export default function DoctorPage() {
     }
   })
 
-  // Complete consultation
   const completeMutation = useMutation({
     mutationFn: (entryId) => api.patch(`/queue/${entryId}/complete`),
     onSuccess: () => {
@@ -44,7 +45,6 @@ export default function DoctorPage() {
     }
   })
 
-  // Skip patient
   const skipMutation = useMutation({
     mutationFn: (entryId) => api.patch(`/queue/${entryId}/skip`),
     onSuccess: () => {
@@ -53,7 +53,6 @@ export default function DoctorPage() {
     }
   })
 
-  // Real-time updates
   useEffect(() => {
     connectClinic(user.tenantId, user.id, user.role)
     socket.on('queue:patient_added', () => queryClient.invalidateQueries(['doctor-queue']))
@@ -64,17 +63,11 @@ export default function DoctorPage() {
     }
   }, [])
 
-  const priorityBadge = (p) => ({
-    critical: '🔴 Critical',
-    moderate: '🟡 Moderate',
-    routine:  '🟢 Routine'
-  })[p] || p
-
-  const priorityBg = (p) => ({
-    critical: 'border-l-4 border-red-500 bg-red-50',
-    moderate: 'border-l-4 border-yellow-500 bg-yellow-50',
-    routine:  'border-l-4 border-green-500 bg-green-50'
-  })[p] || ''
+  const priorityConfig = {
+    critical: { label: '🔴 Critical', cls: 'priority-critical', badge: 'qf-badge-red' },
+    moderate: { label: '🟡 Moderate', cls: 'priority-moderate', badge: 'qf-badge-amber' },
+    routine:  { label: '🟢 Routine',  cls: 'priority-routine',  badge: 'qf-badge-green' }
+  }
 
   const handleViewBrief = (entry) => {
     setBriefModal({
@@ -89,7 +82,6 @@ export default function DoctorPage() {
     if (waiting[0]) handleViewBrief(waiting[0])
   }
 
-  // Complete + optional follow-up
   const handleComplete = async () => {
     setFollowUpSaving(true)
     try {
@@ -118,181 +110,224 @@ export default function DoctorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-
+    <div className="qf-staff-shell">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-lg">Q</span>
-          </div>
+      <header className="qf-staff-header">
+        <div className="qf-staff-brand">
+          <div className="qf-staff-logo">Q</div>
           <div>
-            <h1 className="font-bold text-gray-900">
+            <div className="qf-staff-title">
               {user?.name?.startsWith('Dr') ? user.name : `Dr. ${user.name}`}
-            </h1>
-            <p className="text-xs text-gray-500">{waiting.length} patients waiting</p>
+            </div>
+            <div className="qf-staff-subtitle">{waiting.length} patients waiting</div>
           </div>
         </div>
-        <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
-          Sign out
+        <button onClick={logout} className="qf-btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <LogOut size={14} /> Sign out
         </button>
       </header>
 
-      <div className="max-w-5xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="qf-staff-body">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="lg:grid-cols-2">
 
-        {/* Current Patient Panel */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <h2 className="font-bold text-gray-900 text-lg mb-5">Current Consultation</h2>
+          {/* Current Patient Panel */}
+          <div className="qf-content-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+              <Stethoscope size={18} style={{ color: 'var(--ui-primary)' }} />
+              <h2 style={{ margin: 0 }}>Current Consultation</h2>
+            </div>
 
-          {currentPatient ? (
-            <div className="space-y-4">
-              <div className="bg-blue-50 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-blue-700 text-2xl">
-                    {currentPatient.token_number}
-                  </span>
-                  <span className="text-sm text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
-                    {priorityBadge(currentPatient.priority)}
-                  </span>
+            {currentPatient ? (
+              <div style={{ display: 'grid', gap: 14 }}>
+                {/* Patient info */}
+                <div style={{
+                  borderRadius: 16, padding: 16,
+                  background: 'linear-gradient(135deg, #eef3ff, #e3edff)',
+                  border: '1px solid #c0d3ff'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{
+                      fontFamily: 'Sora, sans-serif', fontWeight: 800,
+                      fontSize: '1.5rem', color: 'var(--ui-primary)'
+                    }}>
+                      {currentPatient.token_number}
+                    </span>
+                    <span className={`qf-badge ${(priorityConfig[currentPatient.priority] || priorityConfig.routine).badge}`}>
+                      {(priorityConfig[currentPatient.priority] || priorityConfig.routine).label}
+                    </span>
+                  </div>
+                  <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ui-text-1)', margin: 0 }}>
+                    {currentPatient.users?.name}
+                  </p>
+                  {currentPatient.registration_type === 'self_registered' && (
+                    <span className="qf-badge qf-badge-indigo" style={{ marginTop: 6 }}>📱 Self-registered (remote)</span>
+                  )}
                 </div>
-                <p className="font-semibold text-gray-900 text-lg">
-                  {currentPatient.users?.name}
-                </p>
-                {currentPatient.registration_type === 'self_registered' && (
-                  <span className="inline-block text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full mt-1">
-                    📱 Self-registered (remote)
-                  </span>
+
+                {/* AI Pre-brief */}
+                {currentPatient.ai_summary && (
+                  <div style={{
+                    borderRadius: 14, padding: 14,
+                    background: 'linear-gradient(165deg, #f0e5ff, #ede9fe)',
+                    border: '1px solid #d8cef7'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      🤖 AI Pre-Brief
+                    </p>
+                    <p style={{ margin: '6px 0 0', fontSize: '0.88rem', color: '#4c1d95' }}>
+                      {currentPatient.ai_summary}
+                    </p>
+                  </div>
                 )}
-              </div>
 
-              {/* AI Pre-brief */}
-              {currentPatient.ai_summary && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-indigo-500 mb-1">🤖 AI PRE-BRIEF</p>
-                  <p className="text-sm text-indigo-900">{currentPatient.ai_summary}</p>
+                {/* Symptoms */}
+                {currentPatient.symptoms && (
+                  <div style={{
+                    borderRadius: 14, padding: 14,
+                    background: 'linear-gradient(165deg, #f8faff, #f1f5f9)',
+                    border: '1px solid var(--ui-border)'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: 'var(--ui-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Patient Reported
+                    </p>
+                    <p style={{ margin: '6px 0 0', fontSize: '0.88rem', color: 'var(--ui-text-1)' }}>
+                      {currentPatient.symptoms}
+                    </p>
+                  </div>
+                )}
+
+                {/* View full brief */}
+                <button
+                  onClick={() => handleViewBrief(currentPatient)}
+                  className="qf-btn-secondary"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <Eye size={14} /> View Full Patient Brief & History
+                </button>
+
+                {/* Action buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button
+                    onClick={() => setFollowUpModal(currentPatient.id)}
+                    disabled={completeMutation.isPending}
+                    className="qf-btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'linear-gradient(135deg, #059669, #10b981)' }}
+                  >
+                    <CheckCircle2 size={16} /> Done
+                  </button>
+                  <button
+                    onClick={() => skipMutation.mutate(currentPatient.id)}
+                    disabled={skipMutation.isPending}
+                    className="qf-btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <SkipForward size={16} /> Skip
+                  </button>
+                  <button
+                    onClick={() => window.location.href = `/doctor/prescription?patient=${currentPatient.patient_id}&name=${encodeURIComponent(currentPatient.users?.name)}&entry=${currentPatient.id}`}
+                    className="qf-btn-secondary"
+                    style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <FileText size={16} /> Write Prescription
+                  </button>
                 </div>
-              )}
-
-              {/* Symptoms */}
-              {currentPatient.symptoms && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-1">PATIENT REPORTED</p>
-                  <p className="text-sm text-gray-700">{currentPatient.symptoms}</p>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: 22,
+                  background: 'linear-gradient(135deg, #eef3ff, #e3edff)',
+                  display: 'grid', placeItems: 'center',
+                  margin: '0 auto 16px', fontSize: '2rem'
+                }}>
+                  👨‍⚕️
                 </div>
-              )}
-
-              {/* View full brief */}
-              <button
-                onClick={() => handleViewBrief(currentPatient)}
-                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium py-2.5 rounded-xl text-sm border border-indigo-200 transition-colors">
-                📋 View Full Patient Brief & History
-              </button>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                {/* ✅ Done button opens follow-up modal */}
+                <p style={{ color: 'var(--ui-text-2)', marginBottom: 20 }}>No active consultation</p>
                 <button
-                  onClick={() => setFollowUpModal(currentPatient.id)}
-                  disabled={completeMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors">
-                  ✓ Done
-                </button>
-                <button
-                  onClick={() => skipMutation.mutate(currentPatient.id)}
-                  disabled={skipMutation.isPending}
-                  className="bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-700 font-semibold py-3 rounded-xl transition-colors">
-                  Skip
-                </button>
-                <button
-                  onClick={() => window.location.href = `/doctor/prescription?patient=${currentPatient.patient_id}&name=${encodeURIComponent(currentPatient.users?.name)}&entry=${currentPatient.id}`}
-                  className="col-span-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-3 rounded-xl transition-colors border border-blue-200">
-                  📋 Write Prescription
+                  onClick={handleCallNext}
+                  disabled={waiting.length === 0 || callMutation.isPending}
+                  className="qf-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <User size={16} />
+                  {callMutation.isPending
+                    ? 'Calling...'
+                    : waiting.length > 0
+                      ? `View Brief & Call Next (${waiting[0]?.token_number})`
+                      : 'No patients waiting'}
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="text-center py-10">
-              <div className="text-5xl mb-4">👨‍⚕️</div>
-              <p className="text-gray-500 mb-6">No active consultation</p>
-              <button
-                onClick={handleCallNext}
-                disabled={waiting.length === 0 || callMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-8 py-3 rounded-xl transition-colors">
-                {callMutation.isPending
-                  ? 'Calling...'
-                  : waiting.length > 0
-                    ? `View Brief & Call Next (${waiting[0]?.token_number})`
-                    : 'No patients waiting'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Waiting Queue */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-gray-900 text-lg">Waiting Queue</h2>
-            <span className="bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full">
-              {waiting.length}
-            </span>
+            )}
           </div>
 
-          {waiting.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-3">✅</div>
-              <p>All caught up!</p>
+          {/* Waiting Queue */}
+          <div className="qf-content-card">
+            <div className="qf-section-head" style={{ marginBottom: 16 }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                Waiting Queue
+                <span className="qf-badge qf-badge-blue">{waiting.length}</span>
+              </h2>
             </div>
-          ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {waiting.map((entry, idx) => (
-                <div key={entry.id}
-                  className={`rounded-xl p-4 ${priorityBg(entry.priority)}`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-400 text-sm font-medium w-6">
-                        #{idx + 1}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-800">
-                            {entry.token_number}
+
+            {waiting.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--ui-text-3)' }}>
+                <div style={{ fontSize: '3rem', marginBottom: 10 }}>✅</div>
+                <p>All caught up!</p>
+              </div>
+            ) : (
+              <div className="qf-scroll" style={{ display: 'grid', gap: 10, maxHeight: 500, overflowY: 'auto', paddingRight: 4 }}>
+                {waiting.map((entry, idx) => {
+                  const pCfg = priorityConfig[entry.priority] || priorityConfig.routine
+                  return (
+                    <div key={entry.id} className={`qf-queue-card ${pCfg.cls}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <span style={{ color: 'var(--ui-text-3)', fontSize: '0.82rem', fontWeight: 600, width: 24 }}>
+                            #{idx + 1}
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {priorityBadge(entry.priority)}
-                          </span>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: 800, color: 'var(--ui-text-1)' }}>
+                                {entry.token_number}
+                              </span>
+                              <span className={`qf-badge ${pCfg.badge}`}>{pCfg.label}</span>
+                            </div>
+                            <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--ui-text-1)' }}>
+                              {entry.users?.name}
+                            </p>
+                            {entry.ai_summary && (
+                              <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#5b4cdb' }}>
+                                🤖 {entry.ai_summary}
+                              </p>
+                            )}
+                            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                              {entry.registration_type === 'self_registered' && (
+                                <span className="qf-badge qf-badge-indigo">📱 Remote</span>
+                              )}
+                              {entry.arrival_status === 'at_home' && (
+                                <span className="qf-badge qf-badge-amber">🏠 At home</span>
+                              )}
+                              {entry.arrival_status === 'arrived' && (
+                                <span className="qf-badge qf-badge-green">✅ Here</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-700 mt-0.5">
-                          {entry.users?.name}
-                        </p>
-                        {entry.ai_summary && (
-                          <p className="text-xs text-indigo-600 mt-1">
-                            🤖 {entry.ai_summary}
-                          </p>
-                        )}
-                        <div className="flex gap-2 mt-1">
-                          {entry.registration_type === 'self_registered' && (
-                            <span className="text-xs text-indigo-600">📱 Remote</span>
-                          )}
-                          {entry.arrival_status === 'at_home' && (
-                            <span className="text-xs text-yellow-600">🏠 At home</span>
-                          )}
-                          {entry.arrival_status === 'arrived' && (
-                            <span className="text-xs text-green-600">✅ Here</span>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => handleViewBrief(entry)}
+                          className="qf-btn-primary"
+                          style={{ fontSize: '0.78rem', padding: '8px 14px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <Eye size={12} /> Brief & Call
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleViewBrief(entry)}
-                      className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg whitespace-nowrap">
-                      👁️ Brief & Call
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
-
       </div>
 
       {/* Patient Brief Modal */}
@@ -309,72 +344,89 @@ export default function DoctorPage() {
         />
       )}
 
-      {/* ✅ Follow-up Modal */}
+      {/* Follow-up Modal */}
       {followUpModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h2 className="text-lg font-bold text-gray-800 mb-1">
+        <div className="qf-overlay">
+          <div className="qf-modal">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={18} style={{ color: '#059669' }} />
               Complete Consultation
             </h2>
-            <p className="text-gray-500 text-sm mb-5">
+            <p style={{ marginTop: 4 }}>
               {currentPatient?.users?.name} — {currentPatient?.token_number}
             </p>
 
-            <label className="block text-sm text-gray-600 mb-1">
-              Schedule follow-up? (optional)
-            </label>
-            <input
-              type="date"
-              value={followUpDate}
-              onChange={e => setFollowUpDate(e.target.value)}
-              min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-3 focus:outline-none focus:border-blue-400"
-            />
-
-            {followUpDate && (
-              <>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Follow-up reason
+            <div style={{ marginTop: 18, display: 'grid', gap: 14 }}>
+              <div>
+                <label className="qf-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <CalendarPlus size={13} /> Schedule follow-up? (optional)
                 </label>
                 <input
-                  value={followUpReason}
-                  onChange={e => setFollowUpReason(e.target.value)}
-                  placeholder="e.g. Check blood pressure, Review test results"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-4 focus:outline-none focus:border-blue-400"
+                  type="date"
+                  value={followUpDate}
+                  onChange={e => setFollowUpDate(e.target.value)}
+                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  className="qf-input"
                 />
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
-                  <p className="text-xs text-blue-700">
-                    📱 Patient will receive a WhatsApp reminder about their follow-up date
-                  </p>
-                </div>
-              </>
-            )}
+              </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setFollowUpModal(null)
-                  setFollowUpDate('')
-                  setFollowUpReason('')
-                }}
-                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                onClick={handleComplete}
-                disabled={followUpSaving}
-                className="flex-1 bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
-                {followUpSaving
-                  ? 'Saving...'
-                  : followUpDate
-                    ? '✓ Complete & Set Follow-up'
-                    : '✓ Complete'}
-              </button>
+              {followUpDate && (
+                <>
+                  <div>
+                    <label className="qf-label">Follow-up reason</label>
+                    <input
+                      value={followUpReason}
+                      onChange={e => setFollowUpReason(e.target.value)}
+                      placeholder="e.g. Check blood pressure, Review test results"
+                      className="qf-input"
+                    />
+                  </div>
+                  <div style={{
+                    borderRadius: 12, padding: 12,
+                    background: 'linear-gradient(165deg, #eef3ff, #e3edff)',
+                    border: '1px solid #c0d3ff'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#1452ff' }}>
+                      📱 Patient will receive a WhatsApp reminder about their follow-up date
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => {
+                    setFollowUpModal(null)
+                    setFollowUpDate('')
+                    setFollowUpReason('')
+                  }}
+                  className="qf-btn-secondary"
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleComplete}
+                  disabled={followUpSaving}
+                  className="qf-btn-primary"
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #059669, #10b981)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                  }}
+                >
+                  <CheckCircle2 size={14} />
+                  {followUpSaving
+                    ? 'Saving...'
+                    : followUpDate
+                      ? 'Complete & Set Follow-up'
+                      : 'Complete'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }

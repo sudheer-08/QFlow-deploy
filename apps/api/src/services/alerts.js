@@ -1,4 +1,4 @@
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { queueNotificationSend } = require('../jobs/reminders');
 const supabase = require('../models/supabase');
 const { getDayBounds, getLocalDateString } = require('../utils/date');
 
@@ -37,33 +37,33 @@ const sendPositionAlerts = async (tenantId, doctorId) => {
 
       // Position 1 — they are next!
       if (position === 1) {
-        queueWhatsAppSend(
+        queueNotificationSend({
           phone,
-          `🔔 *${name}*, you're *NEXT* in line!\n\n` +
-          `Token: *${token}*\n` +
-          `Please make your way to the clinic now if you haven't already.\n\n` +
-          `Track live: ${trackerUrl}`
-        ).catch(err => console.error('Alert WhatsApp error:', err.message));
+          message: `🔔 *${name}*, you're *NEXT* in line!\n\n` +
+            `Token: *${token}*\n` +
+            `Please make your way to the clinic now if you haven't already.\n\n` +
+            `Track live: ${trackerUrl}`
+        }).catch(err => console.error('Alert notification error:', err.message));
       }
 
       // Position 2 — one person ahead, start heading over
       else if (position === 2 && patient.arrival_status === 'at_home') {
-        queueWhatsAppSend(
+        queueNotificationSend({
           phone,
-          `⏱️ *${name}*, one person ahead of you.\n\n` +
-          `Start heading to the clinic now!\n\n` +
-          `Token: *${token}* | Track: ${trackerUrl}`
-        ).catch(err => console.error('Alert WhatsApp error:', err.message));
+          message: `⏱️ *${name}*, one person ahead of you.\n\n` +
+            `Start heading to the clinic now!\n\n` +
+            `Token: *${token}* | Track: ${trackerUrl}`
+        }).catch(err => console.error('Alert notification error:', err.message));
       }
 
       // Position 3 — heads up, getting close
       else if (position === 3 && patient.arrival_status === 'at_home') {
-        queueWhatsAppSend(
+        queueNotificationSend({
           phone,
-          `📍 *${name}*, you're 2 people away from the doctor.\n\n` +
-          `Prepare to head to the clinic shortly.\n\n` +
-          `Token: *${token}*`
-        ).catch(err => console.error('Alert WhatsApp error:', err.message));
+          message: `📍 *${name}*, you're 2 people away from the doctor.\n\n` +
+            `Prepare to head to the clinic shortly.\n\n` +
+            `Token: *${token}*`
+        }).catch(err => console.error('Alert notification error:', err.message));
       }
     }
   } catch (err) {
@@ -73,37 +73,40 @@ const sendPositionAlerts = async (tenantId, doctorId) => {
 
 // ─── Send registration confirmation ──────────────────
 const sendRegistrationAlert = async (phone, name, token, position, trackerUrl, clinicName) => {
-  queueWhatsAppSend(
+  queueNotificationSend({
     phone,
+    message:
     `✅ *${clinicName}* — You're registered!\n\n` +
     `Token: *${token}*\n` +
     `Position: #${position} in queue\n` +
     `Est. wait: ~${position * 8} minutes\n\n` +
     `Track your position live:\n${trackerUrl}\n\n` +
-    `We'll WhatsApp you when to head over. 🏥`
-  ).catch(err => console.error('Registration alert error:', err.message));
+    `We'll notify you when to head over. 🏥`
+  }).catch(err => console.error('Registration alert error:', err.message));
 };
 
 // ─── Send called alert ────────────────────────────────
 const sendCalledAlert = async (phone, name, token, clinicName) => {
-  queueWhatsAppSend(
+  queueNotificationSend({
     phone,
+    message:
     `🔔 *${name}* — The doctor is ready for you!\n\n` +
     `Token: *${token}*\n` +
     `Please proceed to the consultation room now.\n\n` +
     `Thank you for choosing ${clinicName} 🏥`
-  ).catch(err => console.error('Called alert error:', err.message));
+  }).catch(err => console.error('Called alert error:', err.message));
 };
 
 // ─── Send thank you after consultation ───────────────
 const sendCompletionAlert = async (phone, name, clinicName) => {
-  queueWhatsAppSend(
+  queueNotificationSend({
     phone,
+    message:
     `✅ *Consultation complete!*\n\n` +
     `Thank you for visiting *${clinicName}*, ${name}.\n\n` +
     `We hope you feel better soon! 💊\n` +
     `Please follow your doctor's advice and take care.`
-  ).catch(err => console.error('Completion alert error:', err.message));
+  }).catch(err => console.error('Completion alert error:', err.message));
 };
 
 module.exports = {

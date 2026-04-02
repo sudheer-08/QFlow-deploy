@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('../models/supabase');
 const { classifySymptoms } = require('../services/ai');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 // ─── GET /api/public/:subdomain/info ─────────────────
 // Patient opens join page — get clinic info before registering
@@ -147,23 +147,23 @@ router.post('/:subdomain/register', async (req, res) => {
       entryId: entry.id
     });
 
-    // 7. Queue WhatsApp confirmation to patient (non-blocking)
+    // 7. Queue notification confirmation to patient (non-blocking)
     const trackerUrl = `${process.env.FRONTEND_URL}/track/${trackerToken}`;
-    queueWhatsAppSend(
+    queueNotificationSend({
       phone,
-      `✅ *${tenant.name}* — You're registered!\n\n` +
-      `Token: *${tokenNumber}*\n` +
-      `Status: Waiting\n\n` +
-      `Track your position live:\n${trackerUrl}\n\n` +
-      `We'll notify you when to head to the clinic. 🏥`
-    ).catch(err => console.error('Error queueing confirmation WhatsApp:', err.message));
+      message: `✅ *${tenant.name}* — You're registered!\n\n` +
+        `Token: *${tokenNumber}*\n` +
+        `Status: Waiting\n\n` +
+        `Track your position live:\n${trackerUrl}\n\n` +
+        `We'll notify you when to head to the clinic. 🏥`
+    }).catch(err => console.error('Error queueing confirmation notification:', err.message));
 
     res.status(201).json({
       token: tokenNumber,
       trackerUrl: `/track/${trackerToken}`,
       priority,
       clinicName: tenant.name,
-      message: `You're registered! Token ${tokenNumber}. Track your position on the link sent to your WhatsApp.`
+      message: `You're registered! Token ${tokenNumber}. Track your position on the link sent to your notification app.`
     });
 
   } catch (err) {

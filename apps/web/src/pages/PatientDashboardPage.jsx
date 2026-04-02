@@ -12,7 +12,7 @@ export default function PatientDashboardPage() {
   const [activeTab, setActiveTab] = useState('upcoming')
 
   useEffect(() => {
-    if (!user) navigate('/patient/login')
+    if (!user) navigate('/patient/login', { replace: true })
   }, [user, navigate])
 
   const { data: appointments = [], isLoading } = useQuery({

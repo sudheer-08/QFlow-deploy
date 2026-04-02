@@ -3,7 +3,7 @@ const supabase = require('../models/supabase');
 const { v4: uuidv4 } = require('uuid');
 const { authenticate } = require('../middleware/auth');
 const { classifySymptoms } = require('../services/ai');
-const { scheduleReminders, cancelReminders, queueWhatsAppSend } = require('../jobs/reminders');
+const { scheduleReminders, cancelReminders, queueNotificationSend } = require('../jobs/reminders');
 const { getLocalDateString } = require('../utils/date');
 const {
   assert,
@@ -251,7 +251,7 @@ router.post('/book', async (req, res) => {
     const clinicSubdomain = doctorData?.tenants?.subdomain || null;
     const doctorName = doctorData?.name || 'the doctor';
 
-    // 7. Send WhatsApp confirmation
+    // 7. Send notification confirmation
     const appointmentDate = new Date(date).toLocaleDateString('en-IN', {
       weekday: 'long', day: 'numeric', month: 'long'
     });
@@ -266,11 +266,19 @@ router.post('/book', async (req, res) => {
       `Track your appointment:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}\n\n` +
       `We'll remind you 1 hour before. 🦷`;
 
-    if (cleanPhone) {
-      queueWhatsAppSend(cleanPhone, confirmationMessage).catch((waErr) => {
-        console.warn('WhatsApp confirmation failed:', waErr.message);
-      });
-    }
+    // Prefer userId delivery so logged-in patients receive push even if phone formats differ.
+    queueNotificationSend({
+      userId: patientId,
+      phone: cleanPhone,
+      message: confirmationMessage,
+      data: {
+        type: 'appointment_confirmed',
+        appointmentId: appointment.id,
+        trackerToken
+      }
+    }).catch((err) => {
+      console.warn('Notification confirmation failed:', err.message);
+    });
 
     // 8. Schedule reminders
     try {
@@ -390,10 +398,10 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
       .single();
 
     if (appt?.users?.phone) {
-      queueWhatsAppSend(
-        appt.users.phone,
-        `❌ Your appointment at *${appt.tenants?.name}* on ${appt.appointment_date} at ${appt.slot_time?.slice(0, 5)} has been cancelled.\n\nBook again at: ${process.env.FRONTEND_URL}`
-      ).catch(err => console.error('Error queueing cancellation WhatsApp:', err.message));
+      queueNotificationSend({
+        phone: appt.users.phone,
+        message: `❌ Your appointment at *${appt.tenants?.name}* on ${appt.appointment_date} at ${appt.slot_time?.slice(0, 5)} has been cancelled.\n\nBook again at: ${process.env.FRONTEND_URL}`
+      }).catch(err => console.error('Error queueing cancellation notification:', err.message));
     }
 
     await cancelReminders(req.params.id);
@@ -473,10 +481,10 @@ router.patch('/:id/reschedule', authenticate, async (req, res) => {
       const newDate = new Date(date).toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long'
       });
-      queueWhatsAppSend(
-        appt.users.phone,
-        `✅ Appointment Rescheduled!\n\n🏥 ${appt.tenants?.name}\n📅 ${newDate}\n⏰ ${slotTime}\n\nSee you then!`
-      ).catch(err => console.error('Error queueing reschedule WhatsApp:', err.message));
+      queueNotificationSend({
+        phone: appt.users.phone,
+        message: `✅ Appointment Rescheduled!\n\n🏥 ${appt.tenants?.name}\n📅 ${newDate}\n⏰ ${slotTime}\n\nSee you then!`
+      }).catch(err => console.error('Error queueing reschedule notification:', err.message));
     }
 
     res.json({ message: 'Appointment rescheduled successfully', appointment: updated });

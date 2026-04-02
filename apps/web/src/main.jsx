@@ -47,6 +47,9 @@ import IntakeFormPage from './pages/IntakeFormPage';
 import WaitlistManager from './pages/reception/WaitlistManager';
 import PinLoginPage    from './pages/PinLoginPage';
 import NotFoundPage from './pages/NotFoundPage';
+import { initPushMessaging } from './services/push'
+
+initPushMessaging()
 
 const DisplayBoardPage = lazy(() => import('./pages/DisplayBoardPage'))
 const AdvancedAnalyticsPage = lazy(() => import('./pages/AdvancedAnalyticsPage'))
@@ -97,6 +100,27 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children
 }
 
+const AuthRoute = ({ children }) => {
+  const { user } = useAuthStore()
+  if (!user) return children
+
+  const routes = {
+    receptionist: '/reception',
+    doctor: '/doctor',
+    clinic_admin: '/admin',
+    super_admin: '/admin',
+    patient: '/patient/dashboard'
+  }
+
+  return <Navigate to={routes[user.role] || '/'} replace />
+}
+
+const PatientProtectedRoute = ({ children }) => {
+  const { user } = useAuthStore()
+  if (!user) return <Navigate to="/patient/login" replace />
+  return children
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AppErrorBoundary>
@@ -117,11 +141,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/book/:subdomain" element={<BookAppointmentPage />} />
             <Route path="/track-appointment/:token" element={<AppointmentTrackerPage />} />
             <Route path="/payment" element={<PaymentPage />} />
-            <Route path="/patient/login" element={<PatientLoginPage />} />
-            <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
-            <Route path="/patient/health-records" element={<HealthRecordsPage />} />
-            <Route path="/patient/family" element={<FamilyProfilesPage />} />
-            <Route path="/patient/profile" element={<PatientProfilePage />} />
+            <Route path="/patient/login" element={<AuthRoute><PatientLoginPage /></AuthRoute>} />
+            <Route path="/patient/dashboard" element={<PatientProtectedRoute><PatientDashboardPage /></PatientProtectedRoute>} />
+            <Route path="/patient/health-records" element={<PatientProtectedRoute><HealthRecordsPage /></PatientProtectedRoute>} />
+            <Route path="/patient/family" element={<PatientProtectedRoute><FamilyProfilesPage /></PatientProtectedRoute>} />
+            <Route path="/patient/profile" element={<PatientProtectedRoute><PatientProfilePage /></PatientProtectedRoute>} />
             <Route path="/join/:subdomain" element={<JoinPage />} />
             <Route path="/track/:trackerToken" element={<TrackerPage />} />
             <Route path="/rate/:tenantId" element={<RatePage />} />
@@ -129,7 +153,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/intake/:token" element={<IntakeFormPage />} />
             
             {/* ─── Auth ─── */}
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
 
             {/* ─── Reception Routes ─── */}
             <Route path="/reception" element={

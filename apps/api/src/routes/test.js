@@ -1,12 +1,11 @@
 const router = require('express').Router();
-const { queueWhatsAppSend } = require('../jobs/reminders');
-const supabase = require('../models/supabase');
+const { queueNotificationSend } = require('../jobs/reminders');
 
-// ─── TEST ROUTE — test WhatsApp without auth ──────────
-// POST /api/test/whatsapp
-router.post('/whatsapp', async (req, res) => {
+// ─── TEST ROUTE — push by phone (no auth) ─────────────
+// POST /api/test/push
+router.post('/push', async (req, res) => {
   const { phone, message } = req.body;
-  const status = await queueWhatsAppSend(phone, message);
+  const status = await queueNotificationSend({ phone, message });
   res.json(status);
 });
 

@@ -2,10 +2,12 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import { smartBack } from '../utils/navigation'
 
 export default function HealthRecordsPage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/patient/dashboard')
 
   const { data: records, isLoading } = useQuery({
     queryKey: ['health-records'],
@@ -43,7 +45,7 @@ export default function HealthRecordsPage() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif', paddingBottom: 80 }}>
       <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '28px 16px 20px', color: 'white' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <button onClick={() => navigate('/patient/dashboard')} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
+          <button onClick={goBack} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Health Records</h1>
             <p style={{ fontSize: 12, color: '#bfdbfe', margin: 0 }}>Your complete visit history</p>

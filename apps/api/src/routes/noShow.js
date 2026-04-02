@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { sendWaitlistSlotAvailable } = require('../services/whatsapp');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { sendWaitlistSlotAvailable } = require('../services/notifications');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 router.use(authenticate);
 
@@ -77,14 +77,16 @@ router.patch('/queue/:entryId/no-show',
       if (error) throw error;
 
       if (entry.patient?.phone) {
-        queueWhatsAppSend(entry.patient.phone,
+        queueNotificationSend({
+          phone: entry.patient.phone,
+          message:
 `⚠️ *${entry.tenant?.name}*
 
 Hello ${entry.patient?.name}, you were marked as no-show for token *${entry.token_number}*.
 
 To rebook: ${process.env.FRONTEND_URL}/book/${entry.tenant?.subdomain || ''}`
-        ).catch((waErr) => {
-          console.error('Error queueing no-show queue-entry WhatsApp:', waErr.message);
+        }).catch((err) => {
+          console.error('Error queueing no-show queue-entry notification:', err.message);
         });
       }
 
@@ -126,14 +128,16 @@ router.patch('/appointments/:id/no-show',
       if (error) throw error;
 
       if (appt.patient?.phone) {
-        queueWhatsAppSend(appt.patient.phone,
+        queueNotificationSend({
+          phone: appt.patient.phone,
+          message:
 `⚠️ *${appt.tenant?.name}*
 
 Hello ${appt.patient?.name}, you missed your appointment on ${appt.appointment_date} at ${appt.slot_time?.slice(0, 5)}.
 
 Rebook here: ${process.env.FRONTEND_URL}/book/${appt.tenant?.subdomain}`
-        ).catch((waErr) => {
-          console.error('Error queueing no-show appointment WhatsApp:', waErr.message);
+        }).catch((err) => {
+          console.error('Error queueing no-show appointment notification:', err.message);
         });
       }
 
@@ -193,7 +197,9 @@ router.post('/waitlist', async (req, res) => {
     if (error) throw error;
 
     if (data.patient?.phone) {
-      queueWhatsAppSend(data.patient.phone,
+      queueNotificationSend({
+        phone: data.patient.phone,
+        message:
 `📋 *Waitlist Confirmed*
 
 Hello ${data.patient?.name}! You have been added to the waitlist.
@@ -202,8 +208,8 @@ Doctor: ${data.doctor?.name}
 Date: ${appointment_date}
 
 We will notify you immediately if a slot opens up! ⚡`
-      ).catch((waErr) => {
-        console.error('Error queueing waitlist confirmation WhatsApp:', waErr.message);
+      }).catch((err) => {
+        console.error('Error queueing waitlist confirmation notification:', err.message);
       });
     }
 

@@ -59,7 +59,7 @@ export default function PatientLoginPage() {
           password: form.password
         })
         login(data.user, data.accessToken, data.refreshToken)
-        navigate('/patient/dashboard')
+        navigate('/patient/dashboard', { replace: true })
       } else {
         const { data } = await api.post('/auth/register-patient', {
           name: form.name.trim(),
@@ -70,7 +70,7 @@ export default function PatientLoginPage() {
           dateOfBirth: form.dob
         })
         login(data.user, data.accessToken, data.refreshToken)
-        navigate('/')
+        navigate('/', { replace: true })
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong')
@@ -166,7 +166,7 @@ export default function PatientLoginPage() {
 
         <p className="pl-footnote pl-footnote-alt">
           Clinic staff or admin?
-          <button type="button" onClick={() => navigate('/login')}> Staff login</button>
+          <button type="button" onClick={() => navigate('/login', { replace: true })}> Staff login</button>
         </p>
       </div>
     </div>

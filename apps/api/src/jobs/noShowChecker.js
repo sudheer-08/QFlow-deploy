@@ -1,5 +1,5 @@
 const supabase = require('../models/supabase');
-const { queueWhatsAppSend } = require('./reminders');
+const { queueNotificationSend } = require('./reminders');
 const { getLocalDateString } = require('../utils/date');
 
 const startNoShowChecker = () => {
@@ -32,7 +32,9 @@ const startNoShowChecker = () => {
           console.log(`⚠️ Auto no-show: ${appt.patient?.name} at ${appt.slot_time}`);
 
           if (appt.patient?.phone) {
-            queueWhatsAppSend(appt.patient.phone,
+            queueNotificationSend({
+              phone: appt.patient.phone,
+              message:
 `⏰ *${appt.tenant?.name}*
 
 Hello ${appt.patient?.name}, we noticed you missed your appointment at ${appt.slot_time?.slice(0, 5)}.
@@ -40,8 +42,8 @@ Hello ${appt.patient?.name}, we noticed you missed your appointment at ${appt.sl
 To rebook: ${process.env.FRONTEND_URL}/book/${appt.tenant?.subdomain}
 
 We hope you are okay! 🙏`
-            ).catch((waErr) => {
-              console.error('Error queueing no-show WhatsApp:', waErr.message);
+            }).catch((err) => {
+              console.error('Error queueing no-show notification:', err.message);
             });
           }
         }

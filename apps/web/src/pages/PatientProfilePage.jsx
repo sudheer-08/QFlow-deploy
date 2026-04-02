@@ -4,10 +4,12 @@ import { useMutation } from '@tanstack/react-query'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useToast } from '../components/Toast'
+import { smartBack } from '../utils/navigation'
 
 export default function PatientProfilePage() {
   const { user, login, logout } = useAuthStore()
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/patient/dashboard')
   const toast = useToast()
 
   const [form, setForm] = useState({
@@ -43,7 +45,7 @@ export default function PatientProfilePage() {
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '32px 16px 24px', color: 'white' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-          <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
+          <button onClick={goBack} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
           <button
             onClick={() => editing ? updateMutation.mutate(form) : setEditing(true)}
             style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10, padding: '8px 16px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}

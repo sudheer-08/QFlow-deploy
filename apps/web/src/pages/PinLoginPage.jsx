@@ -57,7 +57,7 @@ export default function PinLoginPage() {
       setUser(res.data.user);
 
       const redirect = ROLE_REDIRECTS[res.data.user.role] || '/reception';
-      navigate(redirect);
+      navigate(redirect, { replace: true });
       toast.success(`Welcome, ${res.data.user.name}!`);
     } catch {
       toast.error('Invalid PIN. Try again.');
@@ -105,7 +105,7 @@ export default function PinLoginPage() {
             </button>
 
             <div className="pin-links">
-              <button type="button" onClick={() => navigate('/login')}>
+              <button type="button" onClick={() => navigate('/login', { replace: true })}>
                 Use email and password
               </button>
             </div>
@@ -178,7 +178,7 @@ export default function PinLoginPage() {
             {loading && <p className="pin-loading">Verifying PIN...</p>}
 
             <div className="pin-links">
-              <button type="button" onClick={() => navigate('/login')}>
+              <button type="button" onClick={() => navigate('/login', { replace: true })}>
                 Use email and password
               </button>
             </div>

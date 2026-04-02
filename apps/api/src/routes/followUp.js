@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 router.use(authenticate);
 
@@ -37,13 +37,15 @@ router.post('/', requireRole('doctor', 'clinic_admin'), async (req, res) => {
 
     if (error) throw error;
 
-    // Send WhatsApp immediately
+    // Send notification immediately
     if (data.patient?.phone) {
       const formattedDate = new Date(follow_up_date).toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       });
 
-      queueWhatsAppSend(data.patient.phone,
+      queueNotificationSend({
+        phone: data.patient.phone,
+        message:
 `📅 *${data.tenant?.name} — Follow-up Reminder*
 
 Hello ${data.patient?.name}!
@@ -57,9 +59,9 @@ Book your slot here:
 ${process.env.FRONTEND_URL}/book/${data.tenant?.subdomain}
 
 Take care and get well soon! 🙏`
-  ).catch((waErr) => {
-    console.error('Error queueing follow-up creation WhatsApp:', waErr.message);
-  });
+      }).catch((err) => {
+        console.error('Error queueing follow-up creation notification:', err.message);
+      });
     }
 
     res.json({ followUp: data });
@@ -144,7 +146,9 @@ router.patch('/:id/remind', async (req, res) => {
       weekday: 'long', day: 'numeric', month: 'long'
     });
 
-    queueWhatsAppSend(fu.patient.phone,
+    queueNotificationSend({
+      phone: fu.patient.phone,
+      message:
 `🔔 *${fu.tenant?.name} — Follow-up Reminder*
 
 Hello ${fu.patient?.name}!
@@ -155,8 +159,8 @@ ${fu.reason ? `Reason: ${fu.reason}` : ''}
 
 Book your appointment:
 ${process.env.FRONTEND_URL}/book/${fu.tenant?.subdomain}`
-    ).catch((waErr) => {
-      console.error('Error queueing follow-up reminder WhatsApp:', waErr.message);
+    }).catch((err) => {
+      console.error('Error queueing follow-up reminder notification:', err.message);
     });
 
     await supabase

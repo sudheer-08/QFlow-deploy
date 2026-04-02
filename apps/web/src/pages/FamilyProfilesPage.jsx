@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../services/api'
+import { smartBack } from '../utils/navigation'
 
 export default function FamilyProfilesPage() {
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/patient/dashboard')
   const queryClient = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', relation: 'Spouse', gender: 'Male', dateOfBirth: '', phone: '' })
@@ -36,7 +38,7 @@ export default function FamilyProfilesPage() {
       <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '28px 16px 20px', color: 'white' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => navigate('/patient/dashboard')} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
+            <button onClick={goBack} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 16 }}>←</button>
             <div>
               <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Family Profiles</h1>
               <p style={{ fontSize: 12, color: '#bfdbfe', margin: 0 }}>Book for your whole family</p>

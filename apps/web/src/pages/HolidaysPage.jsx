@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../services/api'
+import { smartBack } from '../utils/navigation'
 
 export default function HolidaysPage() {
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/admin')
   const queryClient = useQueryClient()
   const [form, setForm] = useState({ date: '', reason: '' })
 
@@ -33,7 +35,7 @@ export default function HolidaysPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif', paddingBottom: 40 }}>
       <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => navigate('/admin')} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>←</button>
+        <button onClick={goBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>←</button>
         <div>
           <h1 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', margin: 0 }}>Clinic Holidays</h1>
           <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>No bookings accepted on holidays</p>

@@ -6,8 +6,8 @@ const {
   sendAppointmentConfirmed,
   sendAppointmentDeclined,
   sendSuggestedSlot
-} = require('../services/whatsapp');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+} = require('../services/notifications');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 router.use(authenticate);
 
@@ -198,8 +198,9 @@ router.patch('/:id/suggest', requireRole('receptionist', 'clinic_admin'), async 
     }
 
     if (appt.patient?.phone) {
-      queueWhatsAppSend(
-        appt.patient.phone,
+      queueNotificationSend({
+        phone: appt.patient.phone,
+        message:
 `📋 *${appt.tenant?.name}*
 
 Hello ${appt.patient?.name}!
@@ -210,8 +211,8 @@ Doctor se milne se pehle yeh form bharen:
 ${process.env.FRONTEND_URL}/intake/${appt.token_number}
 
 Sirf 1 minute lagega! / Takes only 1 minute!`
-      ).catch((waErr) => {
-        console.error('Error queueing intake WhatsApp:', waErr.message);
+      }).catch((err) => {
+        console.error('Error queueing intake notification:', err.message);
       });
     }
 

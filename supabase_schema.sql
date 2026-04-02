@@ -255,6 +255,21 @@ create table waitlist (
 
 create index idx_waitlist_tenant_status on waitlist(tenant_id, status, created_at);
 
+-- 13. PUSH TOKENS (Firebase device/browser tokens)
+create table if not exists user_push_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade not null,
+  token text unique not null,
+  platform varchar(20) default 'web'
+    check (platform in ('web', 'android', 'ios', 'unknown')),
+  is_active boolean default true,
+  last_seen_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_user_push_tokens_user on user_push_tokens(user_id);
+create index if not exists idx_user_push_tokens_active on user_push_tokens(is_active);
+
 -- ============================================================
 -- INPUT VALIDATION GUARDRAILS (DB-LEVEL)
 -- ============================================================

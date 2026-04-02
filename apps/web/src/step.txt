@@ -11,10 +11,10 @@ Deploy this project with free services:
 
 Important Notes Before You Start
 --------------------------------
-1) WhatsApp Web.js (QR session) is not stable for cloud hosting because it needs a persistent browser session.
-2) The app will still run without WhatsApp; only WhatsApp messaging features may be limited.
+1) Use Firebase Cloud Messaging for notifications; it works in browser without a persistent QR session.
+2) The app will still run without push permissions; only notification delivery will be limited.
 3) Use Node 18+ and Git installed locally.
-4) For Koyeb deployment, disable WhatsApp Web.js by setting WHATSAPP_ENABLED=false.
+4) Configure Firebase env vars in both API and web apps.
 
 
 STEP 1 - Push Code to GitHub
@@ -77,7 +77,9 @@ STEP 5 - Deploy Backend on Koyeb (Free)
 
 	NODE_ENV=production
 	PORT=5000
-	WHATSAPP_ENABLED=false
+	FIREBASE_PROJECT_ID=<your-firebase-project-id>
+	FIREBASE_CLIENT_EMAIL=<firebase-service-account-client-email>
+	FIREBASE_PRIVATE_KEY=<firebase-service-account-private-key>
 	SUPABASE_URL=<your-supabase-url>
 	SUPABASE_SERVICE_KEY=<your-supabase-service-role-key>
 	JWT_ACCESS_SECRET=<generated-secret-1>
@@ -93,11 +95,10 @@ STEP 5 - Deploy Backend on Koyeb (Free)
 	API_RATE_LIMIT_PER_MIN=240
 	PUBLIC_RATE_LIMIT_PER_MIN=60
 
-COPY-PASTE BLOCK FOR KOYEB (WHATSAPP DISABLED)
+COPY-PASTE BLOCK FOR KOYEB (NOTIFICATIONS CONFIGURED)
 -----------------------------------------------
 NODE_ENV=production
 PORT=5000
-WHATSAPP_ENABLED=false
 SUPABASE_URL=<your-supabase-url>
 SUPABASE_SERVICE_KEY=<your-supabase-service-role-key>
 JWT_ACCESS_SECRET=<generated-secret-1>
@@ -108,6 +109,9 @@ GROQ_API_KEY=<your-groq-key>
 REDIS_URL=<your-upstash-redis-url>
 FRONTEND_URL=https://<your-vercel-domain>
 CORS_ALLOWED_ORIGINS=https://<your-vercel-domain>
+FIREBASE_PROJECT_ID=<your-firebase-project-id>
+FIREBASE_CLIENT_EMAIL=<firebase-service-account-client-email>
+FIREBASE_PRIVATE_KEY=<firebase-service-account-private-key>
 CLINIC_TIMEZONE=Asia/Kolkata
 AUTH_RATE_LIMIT_PER_15_MIN=25
 API_RATE_LIMIT_PER_MIN=240
@@ -134,6 +138,12 @@ STEP 6 - Deploy Frontend on Vercel (Free)
 	VITE_SOCKET_URL=https://<your-koyeb-service-domain>
 	VITE_SUPABASE_URL=<your-supabase-url>
 	VITE_SUPABASE_ANON_KEY=<your-supabase-anon-key>
+	VITE_FIREBASE_API_KEY=<firebase-web-api-key>
+	VITE_FIREBASE_AUTH_DOMAIN=<your-project-id.firebaseapp.com>
+	VITE_FIREBASE_PROJECT_ID=<your-firebase-project-id>
+	VITE_FIREBASE_MESSAGING_SENDER_ID=<your-sender-id>
+	VITE_FIREBASE_APP_ID=<your-web-app-id>
+	VITE_FIREBASE_VAPID_KEY=<your-vapid-key>
 
 5) Deploy.
 6) Copy your Vercel domain (example: https://qflow-app.vercel.app).
@@ -182,9 +192,9 @@ If reminders are not sent:
 1) Check REDIS_URL and Upstash status.
 2) Inspect backend logs for Redis/Bull warnings.
 
-If WhatsApp messages do not work in cloud:
-1) This is expected with whatsapp-web.js on many free cloud hosts.
-2) Keep app running without WhatsApp or later migrate to official WhatsApp Cloud API.
+If notifications do not arrive:
+1) Check Firebase env vars and browser notification permission.
+2) Confirm the user has a row in user_push_tokens.
 
 
 FREE STACK SUMMARY

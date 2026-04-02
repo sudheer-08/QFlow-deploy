@@ -1,7 +1,7 @@
 # QFlow — Clinic Queue Management System
 
 > Multi-tenant SaaS platform for real-time clinic queue management with AI triage,
-> patient self-registration, WhatsApp notifications, and live queue tracking.
+> patient self-registration, Firebase notifications, and live queue tracking.
 > **100% free stack. No credit card. No debit card.**
 
 ---
@@ -14,7 +14,7 @@
 | Backend | Node.js + Express + Socket.io | Free |
 | Database | Supabase (PostgreSQL) | Free |
 | AI Triage | Groq API (Llama 3) | Free |
-| Notifications | WhatsApp Web.js (local QR session) | Free |
+| Notifications | Firebase Cloud Messaging | Free |
 | Maps | Leaflet + OpenStreetMap | Free |
 | Deployment | Vercel + Koyeb | Free |
 
@@ -25,7 +25,7 @@
 1. **GitHub** → github.com → Sign up → Create repo named `qflow`
 2. **Supabase** → supabase.com → Sign up with GitHub → Create project → Copy URL + keys
 3. **Groq** → console.groq.com → Sign up → Create API key
-4. **WhatsApp mobile app** → You will scan a QR code once to connect local whatsapp-web.js session
+4. **Firebase project** → Create a web app, enable Cloud Messaging, and copy the config values
 5. **Vercel** → vercel.com → Sign up with GitHub
 6. **Koyeb** → koyeb.com → Sign up with GitHub
 
@@ -138,7 +138,7 @@ qflow/
 │   └── api/              Node.js backend (port 5000)
 │       └── src/
 │           ├── routes/   API endpoints
-│           ├── services/ AI + WhatsApp
+│           ├── services/ AI + notifications
 │           ├── middleware/ Auth + rate limiting
 │           └── socket/   Real-time handlers
 ├── supabase_schema.sql   Run this in Supabase first
@@ -149,7 +149,7 @@ qflow/
 ## Recommended Project Flow (Local, Production-like)
 
 1. Start infrastructure first: run Redis via Docker before backend startup.
-2. Start API second: run backend, scan WhatsApp QR once, verify `/health`.
+2. Start API second: run backend, verify `/health`.
 3. Start web app third: run Vite app and verify login, join, queue live updates.
 4. Run safety checks each day: `npm --prefix apps/api run test` before changes.
 5. Keep delayed notifications durable: keep Redis running so reminders and rating requests survive restarts.
@@ -208,8 +208,12 @@ vercel
 **Supabase connection error?**
 → Double-check SUPABASE_URL and SUPABASE_SERVICE_KEY in your .env file
 
-**WhatsApp not sending?**
-→ Confirm QR was scanned once, backend logs show WhatsApp client ready, and `.wwebjs_auth` exists.
+**Push notifications not sending?**
+→ Check `http://localhost:5000/health` and confirm `checks.push.status` is `ok`.
+
+→ Apply the SQL that creates `user_push_tokens` (from `supabase_schema.sql`) in your Supabase project, then restart the API.
+
+→ Confirm Firebase env vars are set, browser notification permission is granted, and a row exists in `user_push_tokens` for the logged-in user.
 
 ---
 

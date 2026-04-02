@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AddToCalendar from '../components/AddToCalendar'
+import { smartBack } from '../utils/navigation'
 
 export default function PaymentPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/')
   const booking = location.state || {}
 
   const [step, setStep] = useState('select') // select | processing | success | failed
@@ -173,7 +175,7 @@ export default function PaymentPage() {
 
       {/* Header */}
       <div style={{ background: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #e2e8f0' }}>
-        <button onClick={() => navigate(-1)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>←</button>
+        <button onClick={goBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>←</button>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15 }}>Complete Payment</div>
           <div style={{ fontSize: 11, color: '#64748b' }}>Secure checkout</div>

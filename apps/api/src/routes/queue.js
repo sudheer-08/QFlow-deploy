@@ -4,7 +4,7 @@ const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { classifySymptoms } = require('../services/ai');
 const { sendPositionAlerts, sendCalledAlert, sendCompletionAlert } = require('../services/alerts');
-const { scheduleRatingRequest, queueWhatsAppSend } = require('../jobs/reminders');
+const { scheduleRatingRequest, queueNotificationSend } = require('../jobs/reminders');
 const { getDayBounds, getLocalDateString } = require('../utils/date');
 const { assert, isNonEmptyString, isPhone, isUuid, normalizePhone } = require('../utils/validation');
 
@@ -110,10 +110,13 @@ router.post('/register', requireRole('receptionist', 'clinic_admin'), async (req
       entryId: entry.id
     });
 
-    // 6. Queue WhatsApp notification (non-blocking)
+    // 6. Queue notification (non-blocking)
     if (cleanPhone) {
-      queueWhatsAppSend(cleanPhone, `Hello ${cleanPatientName}! Your token is *${tokenNumber}*. Track your position: ${process.env.FRONTEND_URL}/track/${trackerToken}`).catch(err => {
-        console.error('Error queueing WhatsApp:', err.message);
+      queueNotificationSend({
+        phone: cleanPhone,
+        message: `Hello ${cleanPatientName}! Your token is *${tokenNumber}*. Track your position: ${process.env.FRONTEND_URL}/track/${trackerToken}`
+      }).catch(err => {
+        console.error('Error queueing notification:', err.message);
       });
     }
 
@@ -188,7 +191,7 @@ router.patch('/:entryId/call', requireRole('doctor', 'clinic_admin'), async (req
       token: entry.token_number
     });
 
-    // Smart WhatsApp alert to called patient
+    // Smart notification alert to called patient
     if (entry.users?.phone) {
       await sendCalledAlert(entry.users.phone, entry.users.name, entry.token_number, 'City Care Clinic');
     }
@@ -233,7 +236,7 @@ router.patch('/:entryId/complete', requireRole('doctor', 'clinic_admin'), async 
       entryId: updated.id
     });
 
-    // Send thank you WhatsApp to patient
+    // Send thank you notification to patient
     const { data: patientData } = await supabase
       .from('queue_entries')
       .select('users!patient_id(name, phone), tenants(name), doctor_id')

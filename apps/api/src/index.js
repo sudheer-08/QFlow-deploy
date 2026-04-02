@@ -10,7 +10,6 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { getMorganMiddleware, requestIdMiddleware } = require('./utils/logging');
 const { errorHandler } = require('./utils/errorHandler');
-const { initWhatsApp } = require('./services/whatsAppClient');
 
 
 const app = express();
@@ -104,13 +103,13 @@ app.use('/api/family',              require('./routes/family'));
 app.use('/api/holidays',            require('./routes/holidays'));
 app.use('/api/advanced-analytics',  require('./routes/advancedAnalytics'));
 app.use('/api/qr',                  require('./routes/qrCheckin'));
-app.use('/api/whatsapp',            require('./routes/whatsapp'));
 app.use('/api/intake',              require('./routes/intake'));
 app.use('/api/doctor-brief',        require('./routes/doctorBrief'));
 app.use('/api/no-show',             require('./routes/noShow'));
 app.use('/api/revenue',             require('./routes/revenue'));
 app.use('/api/communications',      require('./routes/communications'));
 app.use('/api/performance',         require('./routes/performance'));
+app.use('/api/push',                require('./routes/push'));
 app.use('/api/pin',                 require('./routes/staffPin'));
 app.use('/api/clinic-profile',      require('./routes/clinicProfile'));
 app.use('/api/follow-up',           require('./routes/followUp'));
@@ -133,13 +132,13 @@ app.use('/api/v1/family',              require('./routes/family'));
 app.use('/api/v1/holidays',            require('./routes/holidays'));
 app.use('/api/v1/advanced-analytics',  require('./routes/advancedAnalytics'));
 app.use('/api/v1/qr',                  require('./routes/qrCheckin'));
-app.use('/api/v1/whatsapp',            require('./routes/whatsapp'));
 app.use('/api/v1/intake',              require('./routes/intake'));
 app.use('/api/v1/doctor-brief',        require('./routes/doctorBrief'));
 app.use('/api/v1/no-show',             require('./routes/noShow'));
 app.use('/api/v1/revenue',             require('./routes/revenue'));
 app.use('/api/v1/communications',      require('./routes/communications'));
 app.use('/api/v1/performance',         require('./routes/performance'));
+app.use('/api/v1/push',                require('./routes/push'));
 app.use('/api/v1/pin',                 require('./routes/staffPin'));
 app.use('/api/v1/clinic-profile',      require('./routes/clinicProfile'));
 app.use('/api/v1/follow-up',           require('./routes/followUp'));
@@ -190,17 +189,6 @@ try {
   console.log('✅ Background reminder jobs started');
 } catch (err) {
   console.warn('⚠️ Reminder jobs could not start (Redis may not be running):', err.message);
-}
-
-// Initialize WhatsApp only when enabled (recommended OFF for free cloud hosts)
-const isWhatsAppEnabled = process.env.WHATSAPP_ENABLED !== 'false';
-if (isWhatsAppEnabled) {
-  const whatsappClient = initWhatsApp();
-  global.whatsappClient = whatsappClient;
-  console.log('✅ WhatsApp Web.js initializing...');
-} else {
-  global.whatsappClient = null;
-  console.log('ℹ️ WhatsApp Web.js disabled via WHATSAPP_ENABLED=false');
 }
 
 const PORT = Number(process.env.PORT || 5000);

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 const BULK_MESSAGE_CONCURRENCY = Number(process.env.BULK_MESSAGE_CONCURRENCY || 5);
 
@@ -15,14 +15,14 @@ function dedupePatientsByPhone(patients) {
   });
 }
 
-async function sendBulkWhatsApp(patients, message) {
+async function sendBulkNotifications(patients, message) {
   const results = [];
 
   for (let i = 0; i < patients.length; i += BULK_MESSAGE_CONCURRENCY) {
     const chunk = patients.slice(i, i + BULK_MESSAGE_CONCURRENCY);
     const chunkResults = await Promise.all(chunk.map(async (patient) => {
       try {
-        const status = await queueWhatsAppSend(patient.phone, message);
+        const status = await queueNotificationSend({ phone: patient.phone, message });
         return {
           name: patient.name,
           phone: patient.phone,
@@ -45,13 +45,12 @@ async function sendBulkWhatsApp(patients, message) {
   return results;
 }
 
-// Non-blocking bulk queue (faster response, messages sent asynchronously)
-async function queueBulkWhatsApp(patients, message) {
+async function queueBulkNotifications(patients, message) {
   const results = [];
-  
+
   for (const patient of patients) {
     try {
-      const status = await queueWhatsAppSend(patient.phone, message);
+      const status = await queueNotificationSend({ phone: patient.phone, message });
       results.push({
         name: patient.name,
         phone: patient.phone,
@@ -63,13 +62,12 @@ async function queueBulkWhatsApp(patients, message) {
       results.push({ name: patient.name, phone: patient.phone, queued: false, error: error.message });
     }
   }
-  
+
   return results;
 }
 
 router.use(authenticate);
 
-// POST send bulk WhatsApp to all today's patients
 router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const { message } = req.body;
@@ -86,7 +84,6 @@ router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (r
       .eq('id', tenantId)
       .single();
 
-    // Get all patients with appointments today
     const { data: appointments } = await supabase
       .from('appointments')
       .select('patient:users!appointments_patient_id_fkey(name, phone)')
@@ -94,7 +91,6 @@ router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (r
       .eq('appointment_date', today)
       .in('status', ['confirmed', 'pending']);
 
-    // Get all queue patients today
     const { data: queuePatients } = await supabase
       .from('queue_entries')
       .select('patient:users!queue_entries_patient_id_fkey(name, phone)')
@@ -102,7 +98,6 @@ router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (r
       .gte('registered_at', `${today}T00:00:00`)
       .neq('status', 'no_show');
 
-    // Merge and deduplicate by phone
     const allPatients = [
       ...(appointments || []).map(a => a.patient),
       ...(queuePatients || []).map(q => q.patient)
@@ -111,7 +106,7 @@ router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (r
     const unique = dedupePatientsByPhone(allPatients);
     const fullMessage = `*${tenant?.name}*\n\n${message}`;
 
-    const results = await sendBulkWhatsApp(unique, fullMessage);
+    const results = await sendBulkNotifications(unique, fullMessage);
 
     const sent = results.filter(r => r.queued).length;
     res.json({ sent, total: unique.length, results });
@@ -120,7 +115,6 @@ router.post('/bulk/today', requireRole('clinic_admin', 'receptionist'), async (r
   }
 });
 
-// POST send bulk to specific date
 router.post('/bulk/date', requireRole('clinic_admin', 'receptionist'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const { message, date } = req.body;
@@ -153,7 +147,7 @@ router.post('/bulk/date', requireRole('clinic_admin', 'receptionist'), async (re
     const unique = dedupePatientsByPhone(patients);
     const fullMessage = `*${tenant?.name}*\n\n${message}`;
 
-    const results = await sendBulkWhatsApp(unique, fullMessage);
+    const results = await sendBulkNotifications(unique, fullMessage);
 
     const sent = results.filter(r => r.queued).length;
     res.json({ sent, total: unique.length, results });
@@ -162,7 +156,6 @@ router.post('/bulk/date', requireRole('clinic_admin', 'receptionist'), async (re
   }
 });
 
-// POST send emergency closure message
 router.post('/emergency-closure', requireRole('clinic_admin'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const { reason, date } = req.body;
@@ -181,7 +174,6 @@ router.post('/emergency-closure', requireRole('clinic_admin'), async (req, res) 
       .eq('appointment_date', date)
       .in('status', ['confirmed', 'pending']);
 
-    // Cancel all appointments for that day
     await supabase
       .from('appointments')
       .update({ status: 'cancelled' })
@@ -192,7 +184,9 @@ router.post('/emergency-closure', requireRole('clinic_admin'), async (req, res) 
     const results = [];
     for (const appt of (appointments || [])) {
       if (appt.patient?.phone) {
-        const status = await queueWhatsAppSend(appt.patient.phone,
+        const status = await queueNotificationSend({
+          phone: appt.patient.phone,
+          message:
 `⚠️ *${tenant?.name} — Important Notice*
 
 Hello ${appt.patient?.name}, we regret to inform you that the clinic will be closed on ${date}.
@@ -203,8 +197,8 @@ Please rebook your appointment:
 ${process.env.FRONTEND_URL}/book/${tenant?.subdomain}
 
 We sincerely apologize for the inconvenience. 🙏`
-  );
-  results.push({ name: appt.patient.name, success: !!status?.success });
+        });
+        results.push({ name: appt.patient.name, success: !!status?.success });
       }
     }
 
@@ -217,7 +211,6 @@ We sincerely apologize for the inconvenience. 🙏`
   }
 });
 
-// POST send manual reminder for one appointment
 router.post('/remind/:appointmentId', requireRole('clinic_admin', 'receptionist'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const { appointmentId } = req.params;
@@ -239,7 +232,9 @@ router.post('/remind/:appointmentId', requireRole('clinic_admin', 'receptionist'
       return res.status(400).json({ error: 'No phone number found' });
     }
 
-    queueWhatsAppSend(appt.patient.phone,
+    queueNotificationSend({
+      phone: appt.patient.phone,
+      message:
 `⏰ *${appt.tenant?.name} — Appointment Reminder*
 
 Hello ${appt.patient?.name}!
@@ -250,7 +245,7 @@ Your appointment details:
 ⏰ Time: ${appt.slot_time?.slice(0, 5)}
 
 Please arrive 5 minutes early. See you soon! 🙏`
-    ).catch(err => console.error('Error queueing reminder WhatsApp:', err.message));
+    }).catch(err => console.error('Error queueing reminder notification:', err.message));
 
     res.json({ success: true, message: 'Reminder sent' });
   } catch (err) {

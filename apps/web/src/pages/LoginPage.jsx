@@ -39,7 +39,7 @@ export default function LoginPage() {
         clinic_admin: '/admin',
         super_admin: '/admin'
       }
-      navigate(routes[data.user.role] || '/reception')
+      navigate(routes[data.user.role] || '/reception', { replace: true })
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Check your credentials.')
     } finally {
@@ -90,7 +90,7 @@ export default function LoginPage() {
         </form>
 
         <div className="sl-footer-links">
-          <button type="button" onClick={() => navigate('/patient/login')}>
+          <button type="button" onClick={() => navigate('/patient/login', { replace: true })}>
             Patient access
           </button>
           <button type="button" onClick={() => navigate('/join/demo')}>

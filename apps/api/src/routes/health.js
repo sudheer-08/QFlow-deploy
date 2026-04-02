@@ -1,10 +1,11 @@
 /**
  * Health check endpoint — reports system status
- * Monitors Redis, Supabase, WhatsApp, and overall API health
+ * Monitors Redis, Supabase, Firebase push, and overall API health
  */
 
 const express = require('express');
 const supabase = require('../models/supabase');
+const { firebaseEnabled } = require('../services/push');
 const router = express.Router();
 
 // Get health status
@@ -17,7 +18,7 @@ router.get('/', async (req, res, next) => {
       checks: {
         supabase: { status: 'checking' },
         redis: { status: 'checking' },
-        whatsapp: { status: 'checking' }
+        push: { status: 'checking' }
       }
     };
 
@@ -60,30 +61,21 @@ router.get('/', async (req, res, next) => {
       };
     }
 
-    // Check WhatsApp
+    // Check Firebase push
     try {
-      const whatsappEnabled = process.env.WHATSAPP_ENABLED !== 'false';
-      if (!whatsappEnabled) {
-        health.checks.whatsapp = {
-          status: 'disabled',
-          message: 'Disabled via WHATSAPP_ENABLED=false'
-        };
-      } else if (global.whatsappClient) {
-        const state = global.whatsappClient.info?.me ? 'ok' : 'connecting';
-        health.checks.whatsapp = {
-          status: state,
-          message: state === 'ok' 
-            ? `Connected as ${global.whatsappClient.info.me.user}` 
-            : 'Client initializing or not connected'
+      if (firebaseEnabled()) {
+        health.checks.push = {
+          status: 'ok',
+          message: 'Firebase Admin configured'
         };
       } else {
-        health.checks.whatsapp = {
-          status: 'unhealthy',
-          message: 'WhatsApp client not initialized'
+        health.checks.push = {
+          status: 'degraded',
+          message: 'Firebase env vars not configured'
         };
       }
     } catch (err) {
-      health.checks.whatsapp = {
+      health.checks.push = {
         status: 'unhealthy',
         message: err.message
       };

@@ -15,7 +15,7 @@ const {
   normalizeEmail,
   normalizePhone
 } = require('../utils/validation');
-const { queueWhatsAppSend } = require('../jobs/reminders');
+const { queueNotificationSend } = require('../jobs/reminders');
 
 // ─── Helper: generate tokens ──────────────────────────
 const generateTokens = (user) => {
@@ -170,16 +170,16 @@ router.post('/register-clinic', async (req, res) => {
 
     // 6. Send welcome message
     if (cleanAdminPhone) {
-      queueWhatsAppSend(
-        cleanAdminPhone,
-        `🎉 Welcome to QFlow!\n\n` +
-        `*${clinicName}* is now registered.\n\n` +
-        `Your clinic page: ${process.env.FRONTEND_URL}/clinic/${cleanSubdomain}\n` +
-        `Admin dashboard: ${process.env.FRONTEND_URL}/admin\n\n` +
-        `Login: ${cleanAdminEmail}\n\n` +
-        `Start accepting appointments today! 🦷`
-      ).catch((waErr) => {
-        console.error('Error queueing welcome WhatsApp:', waErr.message);
+      queueNotificationSend({
+        phone: cleanAdminPhone,
+        message: `🎉 Welcome to QFlow!\n\n` +
+          `*${clinicName}* is now registered.\n\n` +
+          `Your clinic page: ${process.env.FRONTEND_URL}/clinic/${cleanSubdomain}\n` +
+          `Admin dashboard: ${process.env.FRONTEND_URL}/admin\n\n` +
+          `Login: ${cleanAdminEmail}\n\n` +
+          `Start accepting appointments today! 🦷`
+      }).catch((err) => {
+        console.error('Error queueing welcome notification:', err.message);
       });
     }
 

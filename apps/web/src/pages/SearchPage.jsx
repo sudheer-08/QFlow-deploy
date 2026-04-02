@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ClinicCardSkeleton } from '../components/Skeleton'
+import { smartBack } from '../utils/navigation'
 
 export default function SearchPage() {
   const navigate = useNavigate()
+  const goBack = () => smartBack(navigate, '/')
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
     city: 'all',
@@ -65,7 +67,7 @@ export default function SearchPage() {
       {/* Search header */}
       <div style={{ background: 'white', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={() => navigate(-1)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>←</button>
+          <button onClick={goBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>←</button>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
