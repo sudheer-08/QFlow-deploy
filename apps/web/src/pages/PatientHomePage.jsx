@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { UserCircle2, LogOut } from 'lucide-react'
 import L from 'leaflet'
 import AIChatbot from '../components/AIChatbot'
 import { ClinicCardSkeleton } from '../components/Skeleton'
+import { useAuthStore } from '../store/authStore'
 import './PatientHomePage.css'
 
 delete L.Icon.Default.prototype._getIconUrl
@@ -65,6 +67,7 @@ const getDistance = (lat1, lng1, lat2, lng2) => {
 
 export default function PatientHomePage() {
   const navigate = useNavigate()
+  const { user, logout } = useAuthStore()
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('wait')
   const [selectedCity, setSelectedCity] = useState('all')
@@ -169,9 +172,26 @@ export default function PatientHomePage() {
           <button className="ph-btn ph-btn-secondary" onClick={() => navigate('/login')}>
             Clinic Staff Login
           </button>
-          <button className="ph-btn ph-btn-primary" onClick={() => navigate('/patient/login')}>
-            Patient Sign In
-          </button>
+          {user?.role === 'patient' ? (
+            <>
+              <button className="ph-btn ph-btn-primary" onClick={() => navigate('/patient/profile')}>
+                <UserCircle2 size={14} style={{ marginRight: 6 }} /> My Profile
+              </button>
+              <button
+                className="ph-btn ph-btn-secondary"
+                onClick={() => {
+                  logout()
+                  navigate('/')
+                }}
+              >
+                <LogOut size={14} style={{ marginRight: 6 }} /> Sign Out
+              </button>
+            </>
+          ) : (
+            <button className="ph-btn ph-btn-primary" onClick={() => navigate('/patient/login')}>
+              Patient Sign In
+            </button>
+          )}
         </div>
       </header>
 

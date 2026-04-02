@@ -61,10 +61,11 @@ export default function AIChatbot() {
     <>
       {/* Floating button */}
       <button
+        className="qf-ai-fab"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
-          bottom: 24,
+          bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
           right: 20,
           width: 56,
           height: 56,
@@ -75,7 +76,7 @@ export default function AIChatbot() {
           cursor: 'pointer',
           fontSize: 22,
           boxShadow: '0 4px 16px rgba(37, 99, 235, 0.4)',
-          zIndex: 1000,
+          zIndex: 1200,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -87,9 +88,9 @@ export default function AIChatbot() {
 
       {/* Unread badge */}
       {!isOpen && (
-        <div style={{
+        <div className="qf-ai-badge" style={{
           position: 'fixed',
-          bottom: 68,
+          bottom: 'calc(68px + env(safe-area-inset-bottom, 0px))',
           right: 18,
           background: '#dc2626',
           color: 'white',
@@ -97,7 +98,7 @@ export default function AIChatbot() {
           fontSize: 10,
           fontWeight: 700,
           padding: '2px 6px',
-          zIndex: 1001,
+          zIndex: 1201,
           fontFamily: 'sans-serif'
         }}>
           AI
@@ -106,9 +107,9 @@ export default function AIChatbot() {
 
       {/* Chat window */}
       {isOpen && (
-        <div style={{
+        <div className="qf-ai-window" style={{
           position: 'fixed',
-          bottom: 90,
+          bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
           right: 16,
           width: 'calc(100vw - 32px)',
           maxWidth: 380,
@@ -118,7 +119,7 @@ export default function AIChatbot() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',
-          zIndex: 999,
+          zIndex: 1199,
           fontFamily: 'sans-serif',
           overflow: 'hidden'
         }}>
@@ -208,6 +209,28 @@ export default function AIChatbot() {
         @keyframes bounce {
           0%, 100% { transform: translateY(0) }
           50% { transform: translateY(-4px) }
+        }
+
+        @media (max-width: 768px) {
+          .qf-ai-fab {
+            right: 14px !important;
+            bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+            width: 54px !important;
+            height: 54px !important;
+          }
+
+          .qf-ai-badge {
+            right: 12px !important;
+            bottom: calc(138px + env(safe-area-inset-bottom, 0px)) !important;
+          }
+
+          .qf-ai-window {
+            right: 12px !important;
+            bottom: calc(156px + env(safe-area-inset-bottom, 0px)) !important;
+            width: calc(100vw - 24px) !important;
+            maxWidth: 380px;
+            height: min(72vh, 540px) !important;
+          }
         }
       `}</style>
     </>
