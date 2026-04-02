@@ -26,6 +26,21 @@ const matchesDoctorParam = (doctor, rawDoctorParam) => {
   return candidates.some(v => String(v) === rawDoctorParam)
 }
 
+const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || `Request failed (${response.status})`)
+    }
+    return payload
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export default function BookAppointmentPage() {
   const { subdomain } = useParams()
   const [searchParams] = useSearchParams()
@@ -186,7 +201,7 @@ export default function BookAppointmentPage() {
     mutationFn: (data) => {
       if (isReschedule && rescheduleId) {
         // Reschedule endpoint: PATCH /api/appointments/:id/reschedule
-        return fetch(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}/reschedule`, {
+        return fetchJsonWithTimeout(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}/reschedule`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -196,14 +211,14 @@ export default function BookAppointmentPage() {
             date: data.date,
             slotTime: data.slotTime
           })
-        }).then(r => r.json())
+        })
       } else {
         // New booking endpoint: POST /api/appointments/book
-        return fetch(`${import.meta.env.VITE_API_URL}/appointments/book`, {
+        return fetchJsonWithTimeout(`${import.meta.env.VITE_API_URL}/appointments/book`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
-        }).then(r => r.json())
+        })
       }
     },
     onSuccess: (data) => {
@@ -221,7 +236,7 @@ export default function BookAppointmentPage() {
         navigate('/payment', { state: data })
       }
     },
-    onError: () => toast.error('Failed. Please try again.')
+    onError: (err) => toast.error(err?.message || 'Failed. Please try again.')
   })
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {

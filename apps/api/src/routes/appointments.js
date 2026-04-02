@@ -503,8 +503,10 @@ router.patch('/:id/reschedule', authenticate, async (req, res) => {
       .select()
       .single();
 
-    await cancelReminders(req.params.id);
-    await scheduleReminders(updated);
+    cancelReminders(req.params.id)
+      .catch(err => console.error('Cancel reminders error on reschedule:', err.message));
+    scheduleReminders(updated)
+      .catch(err => console.error('Schedule reminders error on reschedule:', err.message));
 
     if (appt.users?.phone) {
       const newDate = new Date(date).toLocaleDateString('en-IN', {
