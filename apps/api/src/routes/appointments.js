@@ -374,7 +374,7 @@ router.get('/my', authenticate, async (req, res) => {
         id, appointment_date, slot_time, status, payment_status,
         priority, tracker_url_token,
         doctors:users!doctor_id(name),
-        tenants(name, address)
+        tenants(name, address, subdomain)
       `)
       .eq('patient_id', req.user.id)
       .order('appointment_date', { ascending: false })
@@ -397,8 +397,8 @@ router.get('/:id', authenticate, async (req, res) => {
       .from('appointments')
       .select(`
         id, appointment_date, slot_time, doctor_id, patient_id,
-        tenants(id, name, address),
-        users!doctor_id(id, name, consultationFee: consultation_fee)
+        tenants(id, name, address, subdomain),
+        doctors:users!doctor_id(id, name)
       `)
       .eq('id', req.params.id)
       .eq('patient_id', req.user.id)

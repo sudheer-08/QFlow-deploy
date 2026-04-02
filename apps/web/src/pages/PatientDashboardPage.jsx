@@ -107,7 +107,14 @@ export default function PatientDashboardPage() {
             <button
               type="button"
               className="pd-btn pd-btn-reschedule"
-              onClick={() => navigate(`/book/${appt.tenants?.subdomain}?reschedule=${appt.id}`)}
+              onClick={() => {
+                const clinicSubdomain = appt.tenants?.subdomain
+                if (!clinicSubdomain) {
+                  window.alert('Clinic link is missing for this appointment. Please refresh and try again.')
+                  return
+                }
+                navigate(`/book/${clinicSubdomain}?reschedule=${appt.id}`)
+              }}
             >
               Reschedule
             </button>
@@ -117,7 +124,14 @@ export default function PatientDashboardPage() {
             <button
               type="button"
               className="pd-btn pd-btn-rebook"
-              onClick={() => navigate(`/book/${appt.tenants?.subdomain}`)}
+              onClick={() => {
+                const clinicSubdomain = appt.tenants?.subdomain
+                if (!clinicSubdomain) {
+                  window.alert('Clinic link is missing for this appointment. Please refresh and try again.')
+                  return
+                }
+                navigate(`/book/${clinicSubdomain}`)
+              }}
             >
               Rebook
             </button>

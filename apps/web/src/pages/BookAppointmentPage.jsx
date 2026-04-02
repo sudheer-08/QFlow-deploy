@@ -53,8 +53,11 @@ export default function BookAppointmentPage() {
   const [formError, setFormError] = useState('')
   const [booking, setBooking] = useState(null)
   const [oldAppointment, setOldAppointment] = useState(null)
+  const [rescheduleError, setRescheduleError] = useState('')
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const selectedDoctorIdIsValid = isUuid(selected.doctorId)
+  const safeSubdomain = subdomain && subdomain !== 'undefined' ? subdomain : ''
+  const resolvedSubdomain = safeSubdomain || oldAppointment?.tenants?.subdomain || ''
 
   const validateDetailsStep = () => {
     const cleanName = form.patientName.trim()
@@ -68,8 +71,9 @@ export default function BookAppointmentPage() {
   }
 
   const { data: clinic, dataUpdatedAt: clinicUpdatedAt } = useQuery({
-    queryKey: ['clinic', subdomain],
-    queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${subdomain}`).then(r => r.json())
+    queryKey: ['clinic', resolvedSubdomain],
+    queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${resolvedSubdomain}`).then(r => r.json()),
+    enabled: !!resolvedSubdomain
   })
 
   // Load old appointment if rescheduling
@@ -92,20 +96,30 @@ export default function BookAppointmentPage() {
 
   // Load old appointment data and pre-select doctor if rescheduling
   useEffect(() => {
-    if (oldApptData && !oldAppointment) {
+    if (!oldApptData || oldAppointment) return
+
+    if (oldApptData.error || !oldApptData.doctor_id) {
+      setRescheduleError(oldApptData.error || 'Unable to load appointment details for reschedule.')
+      return
+    }
+
+    if (isReschedule && !safeSubdomain && !oldApptData?.tenants?.subdomain) {
+      setRescheduleError('Clinic link is invalid. Please open reschedule from your dashboard again.')
+      return
+    }
+
       setOldAppointment(oldApptData)
       // Pre-select the doctor from old appointment
       const doctorId = oldApptData.doctor_id
-      const doctorName = oldApptData.users?.name || ''
-      const fee = oldApptData.users?.consultationFee || 300
+      const doctorName = oldApptData.doctors?.name || ''
+      const fee = 300
       setSelected(prev => ({
         ...prev,
         doctorId,
         doctorName,
         fee
       }))
-    }
-  }, [oldApptData, oldAppointment])
+  }, [oldApptData, oldAppointment, isReschedule, safeSubdomain])
 
   useEffect(() => {
     if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {
@@ -129,11 +143,11 @@ export default function BookAppointmentPage() {
   }, [user])
 
   useEffect(() => {
-    if (!subdomain) return
-    connectPublicClinic(subdomain)
+    if (!resolvedSubdomain) return
+    connectPublicClinic(resolvedSubdomain)
 
     const handleClinicUpdate = (payload) => {
-      queryClient.invalidateQueries({ queryKey: ['clinic', subdomain] })
+      queryClient.invalidateQueries({ queryKey: ['clinic', resolvedSubdomain] })
 
       if (payload?.type === 'appointment_booked') {
         const now = Date.now()
@@ -157,7 +171,7 @@ export default function BookAppointmentPage() {
     return () => {
       socket.off('clinic:updated', handleClinicUpdate)
     }
-  }, [subdomain, queryClient, selected.doctorId, selected.date, selectedDoctorIdIsValid])
+  }, [resolvedSubdomain, queryClient, selected.doctorId, selected.date, selectedDoctorIdIsValid])
 
   const { data: slotsData, isLoading: loadingSlots, dataUpdatedAt: slotsUpdatedAt } = useQuery({
     queryKey: ['slots', selected.doctorId, selected.date],
@@ -483,13 +497,13 @@ export default function BookAppointmentPage() {
       <header className="ba-topbar">
         <button
           className="ba-back"
-          onClick={() => (step > 1 ? setStep(step - 1) : navigate(`/clinic/${subdomain}`))}
+          onClick={() => (step > 1 ? setStep(step - 1) : navigate(resolvedSubdomain ? `/clinic/${resolvedSubdomain}` : '/patient/dashboard'))}
         >
           ←
         </button>
         <div>
           <h1>{isReschedule ? 'Reschedule Appointment' : 'Book Appointment'}</h1>
-          <p>{clinic?.name || 'Loading clinic...'}</p>
+          <p>{clinic?.name || oldAppointment?.tenants?.name || 'Loading clinic...'}</p>
           {lastUpdatedAt && (
             <p className="ba-live-status">
               <span className="ba-live-dot" />
@@ -511,10 +525,15 @@ export default function BookAppointmentPage() {
       </header>
 
       <main className="ba-main">
-        {step === 1 && renderStepOne()}
-        {step === 2 && renderStepTwo()}
-        {step === 3 && !isReschedule && renderStepThree()}
-        {step === 4 && renderStepFour()}
+        {rescheduleError && (
+          <section className="ba-step-card">
+            <div className="ba-error">{rescheduleError}</div>
+          </section>
+        )}
+        {!rescheduleError && step === 1 && renderStepOne()}
+        {!rescheduleError && step === 2 && renderStepTwo()}
+        {!rescheduleError && step === 3 && !isReschedule && renderStepThree()}
+        {!rescheduleError && step === 4 && renderStepFour()}
       </main>
 
       <footer className="ba-footer">
