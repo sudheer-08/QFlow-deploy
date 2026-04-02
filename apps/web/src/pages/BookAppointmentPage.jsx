@@ -37,6 +37,7 @@ export default function BookAppointmentPage() {
   const preselectedDoctor = searchParams.get('doctor')
   const rescheduleId = searchParams.get('reschedule')
   const isReschedule = !!rescheduleId
+  const accessToken = useAuthStore(state => state.accessToken)
 
   const [step, setStep] = useState(1)
   const [selected, setSelected] = useState({
@@ -77,10 +78,10 @@ export default function BookAppointmentPage() {
     queryFn: () =>
       fetch(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${accessToken}`
         }
       }).then(r => r.json()),
-    enabled: isReschedule && !!user
+    enabled: isReschedule && !!user && !!accessToken
   })
 
   useEffect(() => {
@@ -180,7 +181,7 @@ export default function BookAppointmentPage() {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({
             date: data.date,
