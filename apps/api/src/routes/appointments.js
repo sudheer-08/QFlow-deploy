@@ -386,6 +386,35 @@ router.get('/my', authenticate, async (req, res) => {
   }
 });
 
+// ─── GET /api/appointments/:id ──────────────────────
+// Get a single appointment by ID (for reschedule flow)
+// Returns appointment with doctor details
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    assert(isUuid(req.params.id), 'id must be a valid UUID');
+
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, appointment_date, slot_time, doctor_id, patient_id,
+        tenants(id, name, address),
+        users!doctor_id(id, name, consultationFee: consultation_fee)
+      `)
+      .eq('id', req.params.id)
+      .eq('patient_id', req.user.id)
+      .single();
+
+    if (!appt) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    res.json(appt);
+  } catch (err) {
+    console.error('Fetch appointment error:', err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Failed to fetch appointment' });
+  }
+});
+
 // ─── PATCH /api/appointments/:id/cancel ───────────────
 router.patch('/:id/cancel', authenticate, async (req, res) => {
   try {

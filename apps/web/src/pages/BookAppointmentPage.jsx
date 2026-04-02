@@ -35,6 +35,8 @@ export default function BookAppointmentPage() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
   const preselectedDoctor = searchParams.get('doctor')
+  const rescheduleId = searchParams.get('reschedule')
+  const isReschedule = !!rescheduleId
 
   const [step, setStep] = useState(1)
   const [selected, setSelected] = useState({
@@ -49,6 +51,7 @@ export default function BookAppointmentPage() {
   })
   const [formError, setFormError] = useState('')
   const [booking, setBooking] = useState(null)
+  const [oldAppointment, setOldAppointment] = useState(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const selectedDoctorIdIsValid = isUuid(selected.doctorId)
 
@@ -68,11 +71,40 @@ export default function BookAppointmentPage() {
     queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${subdomain}`).then(r => r.json())
   })
 
+  // Load old appointment if rescheduling
+  const { data: oldApptData } = useQuery({
+    queryKey: ['appointment', rescheduleId],
+    queryFn: () =>
+      fetch(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      }).then(r => r.json()),
+    enabled: isReschedule && !!user
+  })
+
   useEffect(() => {
     if (clinicUpdatedAt) {
       setLastUpdatedAt(new Date(clinicUpdatedAt))
     }
   }, [clinicUpdatedAt])
+
+  // Load old appointment data and pre-select doctor if rescheduling
+  useEffect(() => {
+    if (oldApptData && !oldAppointment) {
+      setOldAppointment(oldApptData)
+      // Pre-select the doctor from old appointment
+      const doctorId = oldApptData.doctor_id
+      const doctorName = oldApptData.users?.name || ''
+      const fee = oldApptData.users?.consultationFee || 300
+      setSelected(prev => ({
+        ...prev,
+        doctorId,
+        doctorName,
+        fee
+      }))
+    }
+  }, [oldApptData, oldAppointment])
 
   useEffect(() => {
     if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {
@@ -141,22 +173,45 @@ export default function BookAppointmentPage() {
   }, [slotsUpdatedAt])
 
   const bookMutation = useMutation({
-    mutationFn: (data) =>
-      fetch(`${import.meta.env.VITE_API_URL}/appointments/book`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).then(r => r.json()),
+    mutationFn: (data) => {
+      if (isReschedule && rescheduleId) {
+        // Reschedule endpoint: PATCH /api/appointments/:id/reschedule
+        return fetch(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}/reschedule`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          },
+          body: JSON.stringify({
+            date: data.date,
+            slotTime: data.slotTime
+          })
+        }).then(r => r.json())
+      } else {
+        // New booking endpoint: POST /api/appointments/book
+        return fetch(`${import.meta.env.VITE_API_URL}/appointments/book`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        }).then(r => r.json())
+      }
+    },
     onSuccess: (data) => {
       if (data.error) {
         toast.error(data.error)
         return
       }
-      toast.success('Appointment booked successfully!')
-      setBooking(data)
-      navigate('/payment', { state: data })
+      if (isReschedule) {
+        toast.success('Appointment rescheduled successfully!')
+        // Redirect to appointments page
+        setTimeout(() => navigate('/'), 2000)
+      } else {
+        toast.success('Appointment booked successfully!')
+        setBooking(data)
+        navigate('/payment', { state: data })
+      }
     },
-    onError: () => toast.error('Booking failed. Please try again.')
+    onError: () => toast.error('Failed. Please try again.')
   })
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
@@ -168,8 +223,21 @@ export default function BookAppointmentPage() {
     }
   })
 
-  const morningSlots = slotsData?.slots?.filter(s => Number(s.time.split(':')[0]) < 13) || []
-  const eveningSlots = slotsData?.slots?.filter(s => Number(s.time.split(':')[0]) >= 13) || []
+  // Mark old appointment slot as unavailable when rescheduling
+  const processedSlotsData = isReschedule && oldAppointment && slotsData
+    ? {
+        ...slotsData,
+        slots: slotsData.slots.map(s => ({
+          ...s,
+          available: oldAppointment.appointment_date === selected.date && s.time === oldAppointment.slot_time
+            ? false
+            : s.available
+        }))
+      }
+    : slotsData
+
+  const morningSlots = processedSlotsData?.slots?.filter(s => Number(s.time.split(':')[0]) < 13) || []
+  const eveningSlots = processedSlotsData?.slots?.filter(s => Number(s.time.split(':')[0]) >= 13) || []
 
   if (step === 5 && booking) {
     return (
@@ -208,40 +276,50 @@ export default function BookAppointmentPage() {
   const renderStepOne = () => (
     <section className="ba-step-card">
       <div className="ba-step-head">
-        <h2>Choose Doctor & Date</h2>
-        <p>Start by selecting who and when.</p>
+        <h2>{isReschedule ? 'Pick New Date & Time' : 'Choose Doctor & Date'}</h2>
+        <p>{isReschedule ? 'Your appointment will be moved.' : 'Start by selecting who and when.'}</p>
       </div>
 
-      <p className="ba-label">Select Doctor</p>
-      <div className="ba-doctor-grid">
-        {(clinic?.doctors || []).map(doc => {
-          const docUuid = getDoctorUuid(doc)
-          const isActive = selected.doctorId === docUuid
-          return (
-            <button
-              key={docUuid || doc.id || doc.name}
-              type="button"
-              disabled={!docUuid}
-              className={`ba-doctor-card ${isActive ? 'is-active' : ''}`}
-              onClick={() => {
-                if (!docUuid) return
-                setSelected({ ...selected, doctorId: docUuid, doctorName: doc.name, fee: doc.consultationFee || 300 })
-              }}
-            >
-              <div className="ba-doctor-line">
-                <div>
-                  <strong>{doc.name}</strong>
-                  <span>{doc.specialization}</span>
-                </div>
-                <div className="ba-doctor-meta">
-                  <em>₹{doc.consultationFee || 300}</em>
-                  <small>{doc.queueCount || 0} waiting</small>
-                </div>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      {!isReschedule && (
+        <>
+          <p className="ba-label">Select Doctor</p>
+          <div className="ba-doctor-grid">
+            {(clinic?.doctors || []).map(doc => {
+              const docUuid = getDoctorUuid(doc)
+              const isActive = selected.doctorId === docUuid
+              return (
+                <button
+                  key={docUuid || doc.id || doc.name}
+                  type="button"
+                  disabled={!docUuid}
+                  className={`ba-doctor-card ${isActive ? 'is-active' : ''}`}
+                  onClick={() => {
+                    if (!docUuid) return
+                    setSelected({ ...selected, doctorId: docUuid, doctorName: doc.name, fee: doc.consultationFee || 300 })
+                  }}
+                >
+                  <div className="ba-doctor-line">
+                    <div>
+                      <strong>{doc.name}</strong>
+                      <span>{doc.specialization}</span>
+                    </div>
+                    <div className="ba-doctor-meta">
+                      <em>₹{doc.consultationFee || 300}</em>
+                      <small>{doc.queueCount || 0} waiting</small>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {isReschedule && oldAppointment && (
+        <div className="ba-ok">
+          <strong>Current appointment:</strong> {oldAppointment.tenants?.name} with {selected.doctorName} on {new Date(oldAppointment.appointment_date).toLocaleDateString('en-IN')} at {oldAppointment.slot_time?.slice(0, 5)}
+        </div>
+      )}
 
       <p className="ba-label">Select Date</p>
       <div className="ba-chip-row">
@@ -364,31 +442,35 @@ export default function BookAppointmentPage() {
   const renderStepFour = () => (
     <section className="ba-step-card">
       <div className="ba-step-head">
-        <h2>Confirm Appointment</h2>
-        <p>Review before you lock this slot.</p>
+        <h2>{isReschedule ? 'Confirm New Date & Time' : 'Confirm Appointment'}</h2>
+        <p>{isReschedule ? 'Review your rescheduled appointment.' : 'Review before you lock this slot.'}</p>
       </div>
 
       <div className="ba-summary-grid">
         {[
-          ['Clinic', clinic?.name],
+          ['Clinic', isReschedule ? oldAppointment?.tenants?.name : clinic?.name],
           ['Doctor', selected.doctorName],
           ['Date', new Date(selected.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })],
           ['Time', selected.slot],
-          ['Patient', form.patientName],
-          ['WhatsApp', form.phone]
+          ...(isReschedule ? [] : [['Patient', form.patientName]]),
+          ...(isReschedule ? [] : [['WhatsApp', form.phone]])
         ].map(([label, value]) => (
           <div key={label} className="ba-summary-row">
             <span>{label}</span>
             <strong>{value}</strong>
           </div>
         ))}
-        <div className="ba-summary-total">
-          <span>Consultation Fee</span>
-          <strong>₹{selected.fee || 300}</strong>
-        </div>
+        {!isReschedule && (
+          <div className="ba-summary-total">
+            <span>Consultation Fee</span>
+            <strong>₹{selected.fee || 300}</strong>
+          </div>
+        )}
       </div>
 
-      <div className="ba-note">Fee is paid at the clinic. Slot gets confirmed immediately after submission.</div>
+      {!isReschedule && (
+        <div className="ba-note">Fee is paid at the clinic. Slot gets confirmed immediately after submission.</div>
+      )}
     </section>
   )
 
@@ -405,7 +487,7 @@ export default function BookAppointmentPage() {
           ←
         </button>
         <div>
-          <h1>Book Appointment</h1>
+          <h1>{isReschedule ? 'Reschedule Appointment' : 'Book Appointment'}</h1>
           <p>{clinic?.name || 'Loading clinic...'}</p>
           {lastUpdatedAt && (
             <p className="ba-live-status">
@@ -417,16 +499,20 @@ export default function BookAppointmentPage() {
           )}
         </div>
         <div className="ba-progress">
-          {[1, 2, 3, 4].map(s => (
-            <span key={s} className={step >= s ? 'is-on' : ''} />
-          ))}
+          {[1, 2, isReschedule ? 4 : 3, 4].map((stepNum, idx) => {
+            const displayNum = idx + 1
+            const isOn = isReschedule 
+              ? (stepNum === 1 && step >= 1) || (stepNum === 2 && step >= 2) || (stepNum === 4 && step >= 4)
+              : step >= stepNum
+            return <span key={stepNum} className={isOn ? 'is-on' : ''} />
+          })}
         </div>
       </header>
 
       <main className="ba-main">
         {step === 1 && renderStepOne()}
         {step === 2 && renderStepTwo()}
-        {step === 3 && renderStepThree()}
+        {step === 3 && !isReschedule && renderStepThree()}
         {step === 4 && renderStepFour()}
       </main>
 
@@ -434,7 +520,7 @@ export default function BookAppointmentPage() {
         {step === 1 && (
           <button
             className={`ba-cta ${selectedDoctorIdIsValid ? '' : 'is-disabled'}`}
-            onClick={() => selectedDoctorIdIsValid && setStep(2)}
+            onClick={() => selectedDoctorIdIsValid && setStep(isReschedule ? 2 : 2)}
             disabled={!selectedDoctorIdIsValid}
           >
             Next • Pick Time Slot
@@ -444,14 +530,14 @@ export default function BookAppointmentPage() {
         {step === 2 && (
           <button
             className={`ba-cta ${selected.slot ? '' : 'is-disabled'}`}
-            onClick={() => selected.slot && setStep(3)}
+            onClick={() => selected.slot && setStep(isReschedule ? 4 : 3)}
             disabled={!selected.slot}
           >
             {selected.slot ? `Continue with ${selected.slot}` : 'Select a time slot'}
           </button>
         )}
 
-        {step === 3 && (
+        {step === 3 && !isReschedule && (
           <button
             className="ba-cta"
             onClick={() => {
@@ -473,28 +559,39 @@ export default function BookAppointmentPage() {
           <button
             className="ba-cta ba-cta-confirm"
             onClick={() => {
-              const err = validateDetailsStep()
-              if (err) {
-                toast.error(err)
-                return
+              if (!isReschedule) {
+                const err = validateDetailsStep()
+                if (err) {
+                  toast.error(err)
+                  return
+                }
               }
 
-              bookMutation.mutate({
-                tenantId: clinic?.id,
-                doctorId: selected.doctorId,
-                date: selected.date,
-                slotTime: selected.slot,
-                patientName: form.patientName.trim(),
-                phone: normalizePhone(form.phone),
-                email: form.email ? normalizeEmail(form.email) : '',
-                symptoms: form.symptoms,
-                visitType: form.visitType,
-                patientId: user?.id || null
-              })
+              if (isReschedule) {
+                // Reschedule: only date and slotTime
+                bookMutation.mutate({
+                  date: selected.date,
+                  slotTime: selected.slot
+                })
+              } else {
+                // New booking: full details
+                bookMutation.mutate({
+                  tenantId: clinic?.id,
+                  doctorId: selected.doctorId,
+                  date: selected.date,
+                  slotTime: selected.slot,
+                  patientName: form.patientName.trim(),
+                  phone: normalizePhone(form.phone),
+                  email: form.email ? normalizeEmail(form.email) : '',
+                  symptoms: form.symptoms,
+                  visitType: form.visitType,
+                  patientId: user?.id || null
+                })
+              }
             }}
             disabled={bookMutation.isPending}
           >
-            {bookMutation.isPending ? 'Booking...' : 'Confirm Appointment'}
+            {bookMutation.isPending ? (isReschedule ? 'Rescheduling...' : 'Booking...') : (isReschedule ? 'Confirm Reschedule' : 'Confirm Appointment')}
           </button>
         )}
       </footer>
