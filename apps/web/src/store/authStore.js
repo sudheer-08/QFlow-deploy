@@ -6,13 +6,13 @@ export const useAuthStore = create((set) => ({
   user: JSON.parse(localStorage.getItem('qflow_user') || 'null'),
   accessToken: localStorage.getItem('qflow_token') || null,
 
-  login: (user, accessToken, refreshToken) => {
+  login: async (user, accessToken, refreshToken) => {
     localStorage.setItem('qflow_user', JSON.stringify(user))
     localStorage.setItem('qflow_token', accessToken)
     localStorage.setItem('qflow_refresh', refreshToken)
     set({ user, accessToken })
 
-    registerPushToken().catch(() => {
+    return registerPushToken().catch(() => {
       // Token registration can fail on unsupported browsers or denied permissions.
     })
   },

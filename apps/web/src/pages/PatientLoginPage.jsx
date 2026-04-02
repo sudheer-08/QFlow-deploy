@@ -58,7 +58,7 @@ export default function PatientLoginPage() {
           email: cleanEmail,
           password: form.password
         })
-        login(data.user, data.accessToken, data.refreshToken)
+        await login(data.user, data.accessToken, data.refreshToken)
         navigate('/patient/dashboard', { replace: true })
       } else {
         const { data } = await api.post('/auth/register-patient', {
@@ -69,7 +69,7 @@ export default function PatientLoginPage() {
           gender: form.gender,
           dateOfBirth: form.dob
         })
-        login(data.user, data.accessToken, data.refreshToken)
+        await login(data.user, data.accessToken, data.refreshToken)
         navigate('/', { replace: true })
       }
     } catch (err) {

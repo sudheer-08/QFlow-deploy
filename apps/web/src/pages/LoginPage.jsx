@@ -31,7 +31,7 @@ export default function LoginPage() {
 
     try {
       const { data } = await api.post('/auth/login', { email: cleanEmail, password })
-      login(data.user, data.accessToken, data.refreshToken)
+      await login(data.user, data.accessToken, data.refreshToken)
 
       const routes = {
         receptionist: '/reception',

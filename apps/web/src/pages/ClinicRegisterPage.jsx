@@ -254,7 +254,7 @@ export default function ClinicRegisterPage() {
         return
       }
 
-      login(data.user, data.accessToken, data.refreshToken)
+      await login(data.user, data.accessToken, data.refreshToken)
       navigate('/admin')
     } catch (err) {
       setError('Registration failed. Please try again.')
