@@ -103,15 +103,10 @@ export default function BookAppointmentPage() {
       return
     }
 
-    if (isReschedule && !safeSubdomain && !oldApptData?.tenants?.subdomain) {
-      setRescheduleError('Clinic link is invalid. Please open reschedule from your dashboard again.')
-      return
-    }
-
       setOldAppointment(oldApptData)
       // Pre-select the doctor from old appointment
       const doctorId = oldApptData.doctor_id
-      const doctorName = oldApptData.doctors?.name || ''
+      const doctorName = oldApptData.doctors?.name || oldApptData.users?.name || ''
       const fee = 300
       setSelected(prev => ({
         ...prev,
@@ -119,7 +114,7 @@ export default function BookAppointmentPage() {
         doctorName,
         fee
       }))
-  }, [oldApptData, oldAppointment, isReschedule, safeSubdomain])
+  }, [oldApptData, oldAppointment])
 
   useEffect(() => {
     if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {

@@ -109,11 +109,10 @@ export default function PatientDashboardPage() {
               className="pd-btn pd-btn-reschedule"
               onClick={() => {
                 const clinicSubdomain = appt.tenants?.subdomain
-                if (!clinicSubdomain) {
-                  window.alert('Clinic link is missing for this appointment. Please refresh and try again.')
-                  return
-                }
-                navigate(`/book/${clinicSubdomain}?reschedule=${appt.id}`)
+                const target = clinicSubdomain
+                  ? `/book/${clinicSubdomain}?reschedule=${appt.id}`
+                  : `/book?reschedule=${appt.id}`
+                navigate(target)
               }}
             >
               Reschedule
@@ -127,7 +126,7 @@ export default function PatientDashboardPage() {
               onClick={() => {
                 const clinicSubdomain = appt.tenants?.subdomain
                 if (!clinicSubdomain) {
-                  window.alert('Clinic link is missing for this appointment. Please refresh and try again.')
+                  window.alert('Clinic link is missing for this appointment.')
                   return
                 }
                 navigate(`/book/${clinicSubdomain}`)

@@ -138,6 +138,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/search" element={<SearchPage />} />
             <Route path="/clinic/:subdomain" element={<ClinicDetailPage />} />
             <Route path="/clinic/:subdomain/qr" element={<QRPosterPage />} />
+            <Route path="/book" element={<BookAppointmentPage />} />
             <Route path="/book/:subdomain" element={<BookAppointmentPage />} />
             <Route path="/track-appointment/:token" element={<AppointmentTrackerPage />} />
             <Route path="/payment" element={<PaymentPage />} />
