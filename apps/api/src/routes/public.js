@@ -71,13 +71,26 @@ router.post('/:subdomain/register', async (req, res) => {
 
     if (!tenant) return res.status(404).json({ error: 'Clinic not found' });
 
+    const { data: doctor, error: doctorError } = await supabase
+      .from('users')
+      .select('id, tenant_id')
+      .eq('id', doctorId)
+      .eq('tenant_id', tenant.id)
+      .eq('role', 'doctor')
+      .eq('is_active', true)
+      .single();
+
+    if (doctorError || !doctor) {
+      return res.status(400).json({ error: 'Selected doctor does not belong to this clinic' });
+    }
+
     // 2. Count today's remote entries for token numbering
     const today = new Date().toISOString().split('T')[0];
     const { count } = await supabase
       .from('queue_entries')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenant.id)
-      .eq('doctor_id', doctorId)
+      .eq('doctor_id', doctor.id)
       .gte('registered_at', `${today}T00:00:00`);
 
     // 3. AI triage
@@ -121,7 +134,7 @@ router.post('/:subdomain/register', async (req, res) => {
         id: uuidv4(),
         tenant_id: tenant.id,
         patient_id: patientId,
-        doctor_id: doctorId,
+        doctor_id: doctor.id,
         token_number: tokenNumber,
         registration_type: 'self_registered',
         status: 'waiting',

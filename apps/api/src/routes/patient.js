@@ -29,28 +29,37 @@ router.get('/clinics', async (req, res) => {
 
     if (error) throw error;
 
-    // For each clinic get live queue count and doctor count
-    const enriched = await Promise.all(clinics.map(async (clinic) => {
-      const [{ count: totalWaiting }, { count: doctorCount }] = await Promise.all([
-        supabase
-          .from('queue_entries')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', clinic.id)
-          .eq('status', 'waiting')
-          .gte('registered_at', start),
-        supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('tenant_id', clinic.id)
-          .eq('role', 'doctor')
-          .eq('is_active', true)
-      ]);
+    const clinicIds = clinics.map((clinic) => clinic.id);
 
-      return {
-        ...clinic,
-        totalWaiting: totalWaiting || 0,
-        doctorCount: doctorCount || 0
-      };
+    const [{ data: queueEntries }, { data: doctors }] = await Promise.all([
+      supabase
+        .from('queue_entries')
+        .select('tenant_id')
+        .in('tenant_id', clinicIds)
+        .eq('status', 'waiting')
+        .gte('registered_at', start),
+      supabase
+        .from('users')
+        .select('tenant_id')
+        .in('tenant_id', clinicIds)
+        .eq('role', 'doctor')
+        .eq('is_active', true)
+    ]);
+
+    const waitingByClinic = new Map();
+    (queueEntries || []).forEach((entry) => {
+      waitingByClinic.set(entry.tenant_id, (waitingByClinic.get(entry.tenant_id) || 0) + 1);
+    });
+
+    const doctorsByClinic = new Map();
+    (doctors || []).forEach((doctor) => {
+      doctorsByClinic.set(doctor.tenant_id, (doctorsByClinic.get(doctor.tenant_id) || 0) + 1);
+    });
+
+    const enriched = clinics.map((clinic) => ({
+      ...clinic,
+      totalWaiting: waitingByClinic.get(clinic.id) || 0,
+      doctorCount: doctorsByClinic.get(clinic.id) || 0
     }));
 
     res.json(enriched);

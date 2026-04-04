@@ -6,10 +6,16 @@ import './LandingPage.css'
 export default function LandingPage() {
   const navigate = useNavigate()
 
-  const { data: clinics = [] } = useQuery({
+  const { data: clinics = [], isLoading } = useQuery({
     queryKey: ['clinics-count'],
-    queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics`).then(r => r.json())
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/patient/clinics`)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    }
   })
+
+  const activeClinicCount = isLoading ? null : clinics.length
 
   const features = [
     { icon: Activity, title: 'Live Queue Intelligence', desc: 'Track real-time queue depth across doctors and time windows.', color: '#1452ff' },
@@ -21,7 +27,7 @@ export default function LandingPage() {
   ]
 
   const metrics = [
-    { value: `${clinics.length}+`, label: 'Active Clinics', icon: '🏥' },
+    { value: activeClinicCount === null ? '—' : `${activeClinicCount}+`, label: 'Active Clinics', icon: '🏥' },
     { value: '500+', label: 'Patients Served', icon: '👥' },
     { value: '4.8', label: 'Average Rating', icon: '⭐' },
     { value: '24x7', label: 'Digital Access', icon: '🌐' }
@@ -105,7 +111,7 @@ export default function LandingPage() {
           </ul>
           <div className="lp-mini-metrics">
             <div>
-              <strong>{clinics.length}</strong>
+              <strong>{activeClinicCount === null ? '…' : activeClinicCount}</strong>
               <span>Active clinics</span>
             </div>
             <div>

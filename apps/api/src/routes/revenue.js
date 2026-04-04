@@ -6,7 +6,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 router.use(authenticate);
 
 // GET today's revenue summary
-router.get('/today', async (req, res) => {
+router.get('/today', requireRole('clinic_admin', 'super_admin'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const today = new Date().toISOString().split('T')[0];
 
@@ -105,7 +105,7 @@ router.get('/today', async (req, res) => {
 });
 
 // GET revenue for date range
-router.get('/range', async (req, res) => {
+router.get('/range', requireRole('clinic_admin', 'super_admin'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const { from, to } = req.query;
 
@@ -197,7 +197,7 @@ router.patch('/appointments/:id/collect-fee',
 );
 
 // GET end of day report
-router.get('/end-of-day', async (req, res) => {
+router.get('/end-of-day', requireRole('clinic_admin', 'super_admin'), async (req, res) => {
   const tenantId = req.user.tenantId;
   const today = new Date().toISOString().split('T')[0];
 

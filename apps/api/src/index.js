@@ -11,6 +11,12 @@ const crypto = require('crypto');
 const { getMorganMiddleware, requestIdMiddleware } = require('./utils/logging');
 const { errorHandler } = require('./utils/errorHandler');
 
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
+const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
+if (missingEnvVars.length) {
+  throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+}
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -90,7 +96,7 @@ app.use('/api/v1/auth/register-clinic', authLimiter);
 // Routes
 app.use('/api/auth',                require('./routes/auth'));
 app.use('/api/queue',               require('./routes/queue'));
-app.use('/api/queue',               require('./routes/doctors'));
+app.use('/api/doctors',             require('./routes/doctors'));
 app.use('/api/public',              require('./routes/public'));
 app.use('/api/analytics',           require('./routes/analytics'));
 app.use('/api/test',                require('./routes/test'));
@@ -119,7 +125,7 @@ app.use('/api/booking-requests',    require('./routes/bookingRequests'));
 // Versioned v1 routes
 app.use('/api/v1/auth',                require('./routes/auth'));
 app.use('/api/v1/queue',               require('./routes/queue'));
-app.use('/api/v1/queue',               require('./routes/doctors'));
+app.use('/api/v1/doctors',             require('./routes/doctors'));
 app.use('/api/v1/public',              require('./routes/public'));
 app.use('/api/v1/analytics',           require('./routes/analytics'));
 app.use('/api/v1/test',                require('./routes/test'));

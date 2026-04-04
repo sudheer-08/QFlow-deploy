@@ -122,8 +122,7 @@ router.post('/book', async (req, res) => {
   try {
     const {
       tenantId, doctorId, patientName, phone, email,
-      date, slotTime, symptoms, visitType,
-      patientId: loggedInPatientId  // ✅ sent by frontend when patient is logged in
+      date, slotTime, symptoms, visitType
     } = req.body;
 
     const cleanPatientName = typeof patientName === 'string' ? patientName.trim() : patientName;
@@ -143,13 +142,26 @@ router.post('/book', async (req, res) => {
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
     assert(isTimeHHMM(slotTime), 'slotTime must be in HH:MM format');
 
+    const { data: doctorRecord, error: doctorError } = await supabase
+      .from('users')
+      .select('id, tenant_id, name, tenants(name, subdomain)')
+      .eq('id', doctorId)
+      .eq('tenant_id', tenantId)
+      .eq('role', 'doctor')
+      .eq('is_active', true)
+      .single();
+
+    if (doctorError || !doctorRecord) {
+      return res.status(400).json({ error: 'Selected doctor does not belong to this clinic' });
+    }
+
     const io = req.app.get('io');
 
     // 1. Check slot is still available
     const { data: existing } = await supabase
       .from('appointments')
       .select('id')
-      .eq('doctor_id', doctorId)
+      .eq('doctor_id', doctorRecord.id)
       .eq('appointment_date', date)
       .eq('slot_time', slotTime)
       .in('status', ['confirmed', 'pending'])
@@ -159,34 +171,31 @@ router.post('/book', async (req, res) => {
       return res.status(400).json({ error: 'This slot was just booked. Please pick another time.' });
     }
 
-    // 2. ✅ Use logged-in patient ID if available, else find/create by phone
-    let patientId = loggedInPatientId || null;
+    // 2. Find an existing patient by phone, otherwise create a new patient account.
+    let patientId = null;
+    const { data: existingPatient } = await supabase
+      .from('users')
+      .select('id')
+      .eq('phone', cleanPhone)
+      .eq('role', 'patient')
+      .eq('is_active', true)
+      .single();
 
-    if (!patientId) {
-      // Try to find existing patient by phone
-      const { data: existingPatient } = await supabase
-        .from('users')
-        .select('id')
-        .eq('phone', cleanPhone)
-        .eq('role', 'patient')
-        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
-        .single();
+    if (existingPatient) {
+      patientId = existingPatient.id;
+    } else {
+      patientId = uuidv4();
+      const { error: patientError } = await supabase.from('users').insert({
+        id: patientId,
+        tenant_id: tenantId,
+        name: cleanPatientName,
+        phone: cleanPhone,
+        email: cleanEmail,
+        role: 'patient',
+        is_active: true
+      });
 
-      if (existingPatient) {
-        patientId = existingPatient.id;
-      } else {
-        // Create new patient account
-        patientId = uuidv4();
-        await supabase.from('users').insert({
-          id: patientId,
-          tenant_id: tenantId,
-          name: cleanPatientName,
-          phone: cleanPhone,
-          email: cleanEmail,
-          role: 'patient',
-          is_active: true
-        });
-      }
+      if (patientError) throw patientError;
     }
 
     // 3. AI triage
@@ -206,7 +215,7 @@ router.post('/book', async (req, res) => {
     const { data: settings } = await supabase
       .from('doctor_slot_settings')
       .select('consultation_fee')
-      .eq('doctor_id', doctorId)
+      .eq('doctor_id', doctorRecord.id)
       .single();
 
     const trackerToken = uuidv4().replace(/-/g, '');
@@ -218,7 +227,7 @@ router.post('/book', async (req, res) => {
         id: uuidv4(),
         tenant_id: tenantId,
         patient_id: patientId,
-        doctor_id: doctorId,
+        doctor_id: doctorRecord.id,
         appointment_date: date,
         slot_time: slotTime,
         visit_type: visitType || 'first_visit',
@@ -241,15 +250,9 @@ router.post('/book', async (req, res) => {
     }
 
     // 6. Get clinic + doctor name
-    const { data: doctorData } = await supabase
-      .from('users')
-      .select('name, tenants(name, subdomain)')
-      .eq('id', doctorId)
-      .single();
-
-    const clinicName = doctorData?.tenants?.name || 'the clinic';
-    const clinicSubdomain = doctorData?.tenants?.subdomain || null;
-    const doctorName = doctorData?.name || 'the doctor';
+    const clinicName = doctorRecord?.tenants?.name || 'the clinic';
+    const clinicSubdomain = doctorRecord?.tenants?.subdomain || null;
+    const doctorName = doctorRecord?.name || 'the doctor';
 
     // 7. Send notification confirmation
     const appointmentDate = new Date(date).toLocaleDateString('en-IN', {

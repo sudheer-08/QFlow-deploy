@@ -1,10 +1,28 @@
 const router = require('express').Router();
 const supabase = require('../models/supabase');
+const rateLimit = require('express-rate-limit');
+const { authenticate, requireRole } = require('../middleware/auth');
+
+const qrLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.QR_RATE_LIMIT_PER_MIN || 30),
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const isTrackerToken = (value) => typeof value === 'string' && /^[a-f0-9]{32}$/i.test(value);
+
+router.use(qrLimiter);
+router.use(authenticate);
 
 // ─── GET /api/qr/appointment/:token ──────────────────
 // Returns appointment data when QR is scanned at reception
-router.get('/appointment/:token', async (req, res) => {
+router.get('/appointment/:token', requireRole('receptionist', 'clinic_admin', 'doctor'), async (req, res) => {
   try {
+    if (!isTrackerToken(req.params.token)) {
+      return res.status(400).json({ error: 'Invalid token format' });
+    }
+
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
@@ -36,11 +54,15 @@ router.get('/appointment/:token', async (req, res) => {
 
 // ─── POST /api/qr/checkin/:token ─────────────────────
 // Mark patient as arrived via QR scan
-router.post('/checkin/:token', async (req, res) => {
+router.post('/checkin/:token', requireRole('receptionist', 'clinic_admin'), async (req, res) => {
   try {
+    if (!isTrackerToken(req.params.token)) {
+      return res.status(400).json({ error: 'Invalid token format' });
+    }
+
     const { data: appt } = await supabase
       .from('appointments')
-      .update({ status: 'confirmed', payment_status: 'paid' })
+      .update({ status: 'confirmed' })
       .eq('tracker_url_token', req.params.token)
       .select('*, users!patient_id(name), tenants(id)')
       .single();

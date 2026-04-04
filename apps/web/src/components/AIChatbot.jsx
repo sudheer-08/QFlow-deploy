@@ -33,9 +33,13 @@ export default function AIChatbot() {
     setLoading(true)
 
     try {
+      const token = localStorage.getItem('qflow_token')
       const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           message: userMessage,
           history: messages.slice(-6)
@@ -43,6 +47,14 @@ export default function AIChatbot() {
       })
 
       const data = await response.json()
+      if (!response.ok) {
+        const fallback = response.status === 401
+          ? 'Please sign in to use the AI assistant.'
+          : (data?.reply || data?.error || 'Sorry, something went wrong. Please try again.')
+        setMessages(prev => [...prev, { role: 'assistant', content: fallback }])
+        return
+      }
+
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.reply || 'Sorry, something went wrong. Please try again.'

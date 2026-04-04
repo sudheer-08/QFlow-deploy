@@ -32,7 +32,7 @@ export default function WaitlistManager() {
       const [wRes, nRes, dRes] = await Promise.all([
         api.get('/no-show/waitlist'),
         api.get('/no-show/no-show-report'),
-        api.get('/queue/doctors')
+        api.get('/doctors')
       ]);
       setWaitlist(wRes.data.waitlist || []);
       setNoShows(nRes.data.noShows || []);

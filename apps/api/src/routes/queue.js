@@ -214,8 +214,9 @@ router.patch('/:entryId/complete', requireRole('doctor', 'clinic_admin'), async 
 
     const { data: entry } = await supabase
       .from('queue_entries')
-      .select('registered_at, called_at')
+      .select('registered_at, called_at, tenant_id')
       .eq('id', entryId)
+      .eq('tenant_id', req.user.tenantId)
       .single();
 
     // Calculate actual wait time in minutes
@@ -241,6 +242,7 @@ router.patch('/:entryId/complete', requireRole('doctor', 'clinic_admin'), async 
       .from('queue_entries')
       .select('users!patient_id(name, phone), tenants(name), doctor_id')
       .eq('id', entryId)
+      .eq('tenant_id', req.user.tenantId)
       .single();
 
     if (patientData?.users?.phone) {

@@ -3,9 +3,17 @@ const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+
+const pinLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // POST login with PIN (public — no auth needed)
-router.post('/login', async (req, res) => {
+router.post('/login', pinLoginLimiter, async (req, res) => {
   const { pin, tenant_id } = req.body;
 
   if (!pin || pin.length !== 4) {

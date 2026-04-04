@@ -28,7 +28,7 @@ export default function ReceptionPage() {
 
   const { data: doctors = [] } = useQuery({
     queryKey: ['doctors'],
-    queryFn: () => api.get('/queue/doctors').then(r => r.data)
+    queryFn: () => api.get('/doctors').then(r => r.data)
   })
 
   const {

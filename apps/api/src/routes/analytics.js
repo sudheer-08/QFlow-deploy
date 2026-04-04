@@ -5,7 +5,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 router.use(authenticate);
 
 // ─── GET /api/analytics/summary/today ────────────────
-router.get('/summary/today', async (req, res) => {
+router.get('/summary/today', requireRole('receptionist', 'doctor', 'clinic_admin', 'super_admin'), async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const tenantId = req.user.tenantId;

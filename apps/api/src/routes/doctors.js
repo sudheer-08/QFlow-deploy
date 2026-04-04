@@ -4,8 +4,8 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 router.use(authenticate);
 
-// GET /api/queue/doctors — list doctors for this clinic
-router.get('/doctors', async (req, res) => {
+// GET /api/doctors — list doctors for this clinic
+router.get('/', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -21,8 +21,8 @@ router.get('/doctors', async (req, res) => {
   }
 });
 
-// PATCH /api/queue/doctors/:id/toggle — toggle doctor availability
-router.patch('/doctors/:id/toggle', requireRole('doctor', 'clinic_admin'), async (req, res) => {
+// PATCH /api/doctors/:id/toggle — toggle doctor availability
+router.patch('/:id/toggle', requireRole('clinic_admin'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -39,6 +39,7 @@ router.patch('/doctors/:id/toggle', requireRole('doctor', 'clinic_admin'), async
       .from('users')
       .update({ is_active: !doctor.is_active })
       .eq('id', id)
+      .eq('tenant_id', req.user.tenantId)
       .select()
       .single();
 

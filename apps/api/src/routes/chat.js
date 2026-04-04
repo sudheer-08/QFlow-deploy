@@ -1,13 +1,32 @@
 const router = require('express').Router();
 const supabase = require('../models/supabase');
 const Groq = require('groq-sdk');
+const rateLimit = require('express-rate-limit');
+const { isNonEmptyString } = require('../utils/validation');
+const { authenticate } = require('../middleware/auth');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.CHAT_RATE_LIMIT_PER_MIN || 20),
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+router.use(authenticate);
 
 // ─── POST /api/chat ───────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', chatLimiter, async (req, res) => {
   try {
     const { message, history = [] } = req.body;
+    if (!isNonEmptyString(message, 1000)) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(503).json({ error: 'AI service unavailable', reply: 'AI assistant is currently unavailable.' });
+    }
+
     const today = new Date().toISOString().split('T')[0];
 
     // 1. Fetch live clinic data to give AI real context

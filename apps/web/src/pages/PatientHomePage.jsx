@@ -134,6 +134,8 @@ export default function PatientHomePage() {
       return 0
     })
 
+  const clinicCountLabel = isLoading ? '…' : filtered.length
+
   const isClinicOpen = (openTime, closeTime) => {
     if (!openTime || !closeTime) return true
     const now = new Date()
@@ -226,7 +228,7 @@ export default function PatientHomePage() {
           <div className="ph-metrics-grid">
             <div className="ph-metric-card">
               <span>Clinics Found</span>
-              <strong>{filtered.length}</strong>
+              <strong>{clinicCountLabel}</strong>
             </div>
             <div className="ph-metric-card">
               <span>Sorting</span>
@@ -234,7 +236,7 @@ export default function PatientHomePage() {
             </div>
             <div className="ph-metric-card">
               <span>Best Pick</span>
-              <strong>{topClinic ? topClinic.name : 'No results'}</strong>
+              <strong>{isLoading ? 'Loading...' : topClinic ? topClinic.name : 'No results'}</strong>
             </div>
           </div>
 
@@ -292,7 +294,7 @@ export default function PatientHomePage() {
         <div className="ph-map-card">
           <div className="ph-map-head">
             <h2>Live Clinic Map</h2>
-            <span>{filtered.length} results</span>
+            <span>{isLoading ? 'Loading...' : `${filtered.length} results`}</span>
           </div>
 
           <div className="ph-map-wrap">

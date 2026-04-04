@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const supabase = require('../models/supabase');
 const { v4: uuidv4 } = require('uuid');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 router.use(authenticate);
 
@@ -50,7 +50,7 @@ router.get('/my', async (req, res) => {
 });
 
 // ─── POST /api/health-records/notes ──────────────────
-router.post('/notes', async (req, res) => {
+router.post('/notes', requireRole('doctor', 'clinic_admin'), async (req, res) => {
   try {
     const { patientId, queueEntryId, diagnosis, prescription, notes, followUpDate } = req.body;
 

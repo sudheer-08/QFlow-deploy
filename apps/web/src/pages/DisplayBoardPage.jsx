@@ -25,8 +25,7 @@ export default function DisplayBoardPage() {
   useEffect(() => {
     if (!tenantId) return
     // Connect to real-time updates for this clinic
-    if (!socket.connected) socket.connect()
-    socket.emit('connect_clinic', { tenantId, userId: 'display', role: 'display' })
+    connectClinic(tenantId, 'display', 'display')
 
     socket.on('queue:token_called', (data) => {
       setLastCalled(data)
