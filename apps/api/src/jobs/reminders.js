@@ -45,17 +45,33 @@ try {
       if (type === 'send_push') {
         const { phone, message, userId, title, body, data } = job.data;
 
+        // Always try both: Firebase push (to userId's tokens) and WhatsApp (to phone).
+        // This ensures anonymous/new patients get notified even without registered push tokens.
+        let results = { push: null, sms: null };
+
         if (userId) {
-          await sendPushToUser(userId, { title, body, message, data });
-          return;
+          try {
+            results.push = await sendPushToUser(userId, { title, body, message, data });
+          } catch (pushErr) {
+            console.error('Push to userId failed:', pushErr.message);
+          }
         }
 
         if (phone && (message || title || body)) {
-          await sendPushByPhone(phone, { title, body, message, data });
-          return;
+          try {
+            results.sms = await sendPushByPhone(phone, { title, body, message, data });
+          } catch (phoneErr) {
+            console.error('Push by phone failed:', phoneErr.message);
+          }
         }
 
-        console.warn('⚠️ Push job missing recipient or content');
+        const anySuccess = (results.push?.success || results.push?.successCount > 0) ||
+                          (results.sms?.success || results.sms?.successCount > 0);
+
+        if (!anySuccess && !phone && !userId) {
+          console.warn('⚠️ Push job missing recipient or content');
+        }
+
         return;
       }
 
