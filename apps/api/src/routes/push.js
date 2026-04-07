@@ -19,9 +19,7 @@ function toPushTokenTableError(err) {
   return { status: 500, body: { error: message } };
 }
 
-router.use(authenticate);
-
-router.post('/token', async (req, res) => {
+router.post('/token', authenticate, async (req, res) => {
   try {
     const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
     const rawPlatform = typeof req.body.platform === 'string' ? req.body.platform.trim().toLowerCase() : 'web';
@@ -69,7 +67,7 @@ router.post('/token', async (req, res) => {
   }
 });
 
-router.delete('/token', async (req, res) => {
+router.delete('/token', authenticate, async (req, res) => {
   try {
     const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
 
@@ -93,7 +91,7 @@ router.delete('/token', async (req, res) => {
   }
 });
 
-router.post('/test', async (req, res) => {
+router.post('/test', authenticate, async (req, res) => {
   try {
     if (!firebaseEnabled()) {
       return res.status(400).json({ error: 'Firebase is not configured' });
@@ -108,6 +106,28 @@ router.post('/test', async (req, res) => {
     });
 
     return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Diagnostic endpoint (no auth required)
+router.get('/status', async (req, res) => {
+  try {
+    const firebaseConfigured = firebaseEnabled();
+    
+    const { data: tokenCount } = await supabase
+      .from('user_push_tokens')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('is_active', true);
+
+    return res.json({
+      firebase_configured: firebaseConfigured,
+      total_active_tokens: tokenCount,
+      message: firebaseConfigured
+        ? 'Firebase is configured. Notifications should work.'
+        : '⚠️ Firebase is NOT configured on this server. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY on Render.'
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
