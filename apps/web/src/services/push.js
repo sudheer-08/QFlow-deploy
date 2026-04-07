@@ -13,6 +13,17 @@ const firebaseConfig = {
 const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
 let activeToken = null
 
+const setPushDebugStatus = (status) => {
+  try {
+    localStorage.setItem('qflow_push_last_status', JSON.stringify({
+      ...status,
+      at: new Date().toISOString()
+    }))
+  } catch (_err) {
+    // Best effort debug storage
+  }
+}
+
 const getCurrentUserId = () => {
   try {
     const raw = localStorage.getItem('qflow_user')
@@ -74,38 +85,52 @@ const registerServiceWorker = async () => {
 
 export const registerPushToken = async () => {
   if (!(await isSupported()) || !hasFirebaseWebConfig()) {
-    return { success: false, reason: 'firebase-web-not-configured' }
+    const status = { success: false, reason: 'firebase-web-not-configured' }
+    setPushDebugStatus(status)
+    return status
   }
 
   if (!('Notification' in window)) {
-    return { success: false, reason: 'notification-api-unsupported' }
+    const status = { success: false, reason: 'notification-api-unsupported' }
+    setPushDebugStatus(status)
+    return status
   }
 
   if (!window.isSecureContext && location.hostname !== 'localhost') {
-    return { success: false, reason: 'secure-context-required' }
+    const status = { success: false, reason: 'secure-context-required' }
+    setPushDebugStatus(status)
+    return status
   }
 
   if (Notification.permission === 'denied') {
-    return { success: false, reason: 'notification-permission-denied' }
+    const status = { success: false, reason: 'notification-permission-denied' }
+    setPushDebugStatus(status)
+    return status
   }
 
   const permission = Notification.permission === 'granted'
     ? 'granted'
     : await Notification.requestPermission()
   if (permission !== 'granted') {
-    return { success: false, reason: 'notification-permission-denied' }
+    const status = { success: false, reason: 'notification-permission-denied' }
+    setPushDebugStatus(status)
+    return status
   }
 
   const app = getFirebaseApp()
   const messaging = getMessaging(app)
   const serviceWorkerRegistration = await registerServiceWorker()
   if (!serviceWorkerRegistration) {
-    return { success: false, reason: 'service-worker-unsupported' }
+    const status = { success: false, reason: 'service-worker-unsupported' }
+    setPushDebugStatus(status)
+    return status
   }
   const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration })
 
   if (!token) {
-    return { success: false, reason: 'missing-token' }
+    const status = { success: false, reason: 'missing-token' }
+    setPushDebugStatus(status)
+    return status
   }
 
   const userId = getCurrentUserId()
@@ -122,7 +147,9 @@ export const registerPushToken = async () => {
     localStorage.setItem(welcomeFlagKey(userId), '1')
   }
 
-  return result?.data || { success: true }
+  const status = result?.data || { success: true }
+  setPushDebugStatus({ success: true, reason: 'registered', details: status })
+  return status
 }
 
 export const unregisterPushToken = async () => {
@@ -137,6 +164,11 @@ export const unregisterPushToken = async () => {
 export const initPushMessaging = async () => {
   try {
     await setupForegroundListener()
+    const hasUser = Boolean(localStorage.getItem('qflow_user'))
+    const hasAccessToken = Boolean(localStorage.getItem('qflow_token'))
+    if (hasUser && hasAccessToken && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      await registerPushToken()
+    }
   } catch (_err) {
     // Best effort initialization
   }

@@ -16,9 +16,24 @@ export const useAuthStore = create((set) => ({
     }
     set({ user, accessToken })
 
-    return registerPushToken().catch(() => {
-      // Token registration can fail on unsupported browsers or denied permissions.
-    })
+    return registerPushToken()
+      .then((result) => {
+        const outcome = result?.success
+          ? { ok: true, reason: 'registered' }
+          : { ok: false, reason: result?.reason || 'unknown' }
+        localStorage.setItem('qflow_push_login_result', JSON.stringify({
+          ...outcome,
+          at: new Date().toISOString()
+        }))
+        return result
+      })
+      .catch((err) => {
+        localStorage.setItem('qflow_push_login_result', JSON.stringify({
+          ok: false,
+          reason: err?.response?.data?.error || err?.message || 'register-failed',
+          at: new Date().toISOString()
+        }))
+      })
   },
 
   setUser: (user, accessToken = null, refreshToken = null) => {
