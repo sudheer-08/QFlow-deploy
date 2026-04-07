@@ -121,7 +121,7 @@ router.get('/slots', async (req, res) => {
 router.post('/book', async (req, res) => {
   try {
     const {
-      tenantId, doctorId, patientName, phone, email,
+      tenantId, doctorId, patientName, phone, email, patientId: loggedInPatientId,
       date, slotTime, symptoms, visitType
     } = req.body;
 
@@ -158,14 +158,16 @@ router.post('/book', async (req, res) => {
     const io = req.app.get('io');
 
     // 1. Check slot is still available
-    const { data: existing } = await supabase
+    const { data: existing, error: existingErr } = await supabase
       .from('appointments')
       .select('id')
       .eq('doctor_id', doctorRecord.id)
       .eq('appointment_date', date)
       .eq('slot_time', slotTime)
       .in('status', ['confirmed', 'pending'])
-      .single();
+      .maybeSingle();
+
+    if (existingErr) throw existingErr;
 
     if (existing) {
       return res.status(400).json({ error: 'This slot was just booked. Please pick another time.' });
@@ -173,17 +175,56 @@ router.post('/book', async (req, res) => {
 
     // 2. Find an existing patient by phone, otherwise create a new patient account.
     let patientId = null;
-    const { data: existingPatient } = await supabase
-      .from('users')
-      .select('id')
-      .eq('phone', cleanPhone)
-      .eq('role', 'patient')
-      .eq('is_active', true)
-      .single();
 
-    if (existingPatient) {
-      patientId = existingPatient.id;
-    } else {
+    if (loggedInPatientId) {
+      const { data: existingById, error: existingByIdErr } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', loggedInPatientId)
+        .eq('role', 'patient')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingByIdErr) throw existingByIdErr;
+
+      if (existingById) {
+        patientId = existingById.id;
+      }
+    }
+
+    if (!patientId) {
+      const { data: existingPatient, error: existingPatientErr } = await supabase
+        .from('users')
+        .select('id')
+        .eq('phone', cleanPhone)
+        .eq('role', 'patient')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingPatientErr) throw existingPatientErr;
+
+      if (existingPatient) {
+        patientId = existingPatient.id;
+      }
+    }
+
+    if (!patientId && cleanEmail) {
+      const { data: existingByEmail, error: existingByEmailErr } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', cleanEmail)
+        .eq('role', 'patient')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingByEmailErr) throw existingByEmailErr;
+
+      if (existingByEmail) {
+        patientId = existingByEmail.id;
+      }
+    }
+
+    if (!patientId) {
       patientId = uuidv4();
       const { error: patientError } = await supabase.from('users').insert({
         id: patientId,
