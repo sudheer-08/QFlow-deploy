@@ -13,7 +13,7 @@ const ROLE_REDIRECTS = {
 
 export default function PinLoginPage() {
   const navigate = useNavigate();
-  const { setUser } = useAuthStore();
+  const { login } = useAuthStore();
   const toast = useToast();
   const [pin, setPin] = useState(['', '', '', '']);
   const [tenantId, setTenantId] = useState('');
@@ -53,8 +53,7 @@ export default function PinLoginPage() {
         tenant_id: tenantId
       });
 
-      localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      await login(res.data.user, res.data.token);
 
       const redirect = ROLE_REDIRECTS[res.data.user.role] || '/reception';
       navigate(redirect, { replace: true });

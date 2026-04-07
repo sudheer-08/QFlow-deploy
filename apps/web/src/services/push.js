@@ -67,7 +67,9 @@ const registerServiceWorker = async () => {
     appId: firebaseConfig.appId
   })
 
-  return navigator.serviceWorker.register(`/firebase-messaging-sw.js?${params.toString()}`)
+  const registration = await navigator.serviceWorker.register(`/firebase-messaging-sw.js?${params.toString()}`)
+  await navigator.serviceWorker.ready
+  return registration
 }
 
 export const registerPushToken = async () => {
@@ -79,7 +81,17 @@ export const registerPushToken = async () => {
     return { success: false, reason: 'notification-api-unsupported' }
   }
 
-  const permission = await Notification.requestPermission()
+  if (!window.isSecureContext && location.hostname !== 'localhost') {
+    return { success: false, reason: 'secure-context-required' }
+  }
+
+  if (Notification.permission === 'denied') {
+    return { success: false, reason: 'notification-permission-denied' }
+  }
+
+  const permission = Notification.permission === 'granted'
+    ? 'granted'
+    : await Notification.requestPermission()
   if (permission !== 'granted') {
     return { success: false, reason: 'notification-permission-denied' }
   }
@@ -87,6 +99,9 @@ export const registerPushToken = async () => {
   const app = getFirebaseApp()
   const messaging = getMessaging(app)
   const serviceWorkerRegistration = await registerServiceWorker()
+  if (!serviceWorkerRegistration) {
+    return { success: false, reason: 'service-worker-unsupported' }
+  }
   const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration })
 
   if (!token) {
