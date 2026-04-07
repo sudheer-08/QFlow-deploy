@@ -330,11 +330,14 @@ router.post('/book', async (req, res) => {
     queueNotificationSend({
       userId: patientId,
       phone: cleanPhone,
+      title: 'Appointment Confirmed',
+      body: `${clinicName} • ${appointmentDate} • ${slotTime}`,
       message: confirmationMessage,
       data: {
         type: 'appointment_confirmed',
         appointmentId: appointment.id,
-        trackerToken
+        trackerToken,
+        link: `${process.env.FRONTEND_URL}/track-appointment/${trackerToken}`
       }
     }).catch((err) => {
       console.warn('Notification confirmation failed:', err.message);
@@ -495,6 +498,8 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
     if (appt?.users?.phone) {
       queueNotificationSend({
         phone: appt.users.phone,
+        title: 'Appointment Cancelled',
+        body: `${appt.tenants?.name || 'Clinic'} • ${appt.appointment_date} • ${appt.slot_time?.slice(0, 5)}`,
         message: `❌ Your appointment at *${appt.tenants?.name}* on ${appt.appointment_date} at ${appt.slot_time?.slice(0, 5)} has been cancelled.\n\nBook again at: ${process.env.FRONTEND_URL}`
       }).catch(err => console.error('Error queueing cancellation notification:', err.message));
     }
@@ -580,6 +585,8 @@ router.patch('/:id/reschedule', authenticate, async (req, res) => {
       });
       queueNotificationSend({
         phone: appt.users.phone,
+        title: 'Appointment Rescheduled',
+        body: `${appt.tenants?.name || 'Clinic'} • ${newDate} • ${slotTime}`,
         message: `✅ Appointment Rescheduled!\n\n🏥 ${appt.tenants?.name}\n📅 ${newDate}\n⏰ ${slotTime}\n\nSee you then!`
       }).catch(err => console.error('Error queueing reschedule notification:', err.message));
     }
