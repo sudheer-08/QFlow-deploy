@@ -41,6 +41,7 @@ import SearchPage from './pages/SearchPage'
 import PatientProfilePage from './pages/PatientProfilePage'
 import OnboardingPage from './pages/OnboardingPage'
 import QRPosterPage from './pages/QRPosterPage'
+import PushDebugPage from './pages/PushDebugPage'
 
 import { useAuthStore } from './store/authStore'
 import IntakeFormPage from './pages/IntakeFormPage';
@@ -152,6 +153,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/rate/:tenantId" element={<RatePage />} />
             <Route path="/register-clinic" element={<ClinicRegisterPage />} />
             <Route path="/intake/:token" element={<IntakeFormPage />} />
+            <Route path="/push-debug" element={<PushDebugPage />} />
             
             {/* ─── Auth ─── */}
             <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
