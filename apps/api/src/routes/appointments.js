@@ -157,23 +157,7 @@ router.post('/book', async (req, res) => {
 
     const io = req.app.get('io');
 
-    // 1. Check slot is still available
-    const { data: existing, error: existingErr } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('doctor_id', doctorRecord.id)
-      .eq('appointment_date', date)
-      .eq('slot_time', slotTime)
-      .in('status', ['confirmed', 'pending'])
-      .maybeSingle();
-
-    if (existingErr) throw existingErr;
-
-    if (existing) {
-      return res.status(400).json({ error: 'This slot was just booked. Please pick another time.' });
-    }
-
-    // 2. Find an existing patient by phone, otherwise create a new patient account.
+    // 1. Find an existing patient by phone/email/id, otherwise create a new patient account.
     let patientId = null;
 
     if (loggedInPatientId) {
@@ -239,7 +223,51 @@ router.post('/book', async (req, res) => {
       if (patientError) throw patientError;
     }
 
-    // 3. AI triage
+    // 2. Check slot availability after patient resolution.
+    // If the same patient retries the same booking, return the existing appointment instead of failing.
+    const { data: existing, error: existingErr } = await supabase
+      .from('appointments')
+      .select('id, patient_id, tracker_url_token, payment_amount, appointment_date, slot_time')
+      .eq('doctor_id', doctorRecord.id)
+      .eq('appointment_date', date)
+      .eq('slot_time', slotTime)
+      .in('status', ['confirmed', 'pending'])
+      .maybeSingle();
+
+    if (existingErr) throw existingErr;
+
+    // 3. Get slot settings for fee (used by both existing and new appointment response).
+    const { data: settings } = await supabase
+      .from('doctor_slot_settings')
+      .select('consultation_fee')
+      .eq('doctor_id', doctorRecord.id)
+      .single();
+
+    const clinicName = doctorRecord?.tenants?.name || 'the clinic';
+    const clinicSubdomain = doctorRecord?.tenants?.subdomain || null;
+    const doctorName = doctorRecord?.name || 'the doctor';
+    const consultationFee = settings?.consultation_fee || existing?.payment_amount || 300;
+
+    if (existing) {
+      if (existing.patient_id === patientId) {
+        return res.status(200).json({
+          appointmentId: existing.id,
+          trackerToken: existing.tracker_url_token,
+          trackerUrl: `/track-appointment/${existing.tracker_url_token}`,
+          date,
+          slotTime,
+          consultationFee,
+          clinicName,
+          doctorName,
+          alreadyBooked: true,
+          message: 'You already have this appointment confirmed.'
+        });
+      }
+
+      return res.status(400).json({ error: 'This slot was just booked. Please pick another time.' });
+    }
+
+    // 4. AI triage
     let priority = 'routine';
     let aiSummary = '';
     if (symptoms) {
@@ -251,13 +279,6 @@ router.post('/book', async (req, res) => {
         console.warn('AI triage failed:', e.message);
       }
     }
-
-    // 4. Get slot settings for fee
-    const { data: settings } = await supabase
-      .from('doctor_slot_settings')
-      .select('consultation_fee')
-      .eq('doctor_id', doctorRecord.id)
-      .single();
 
     const trackerToken = uuidv4().replace(/-/g, '');
 
@@ -277,7 +298,7 @@ router.post('/book', async (req, res) => {
         priority,
         status: 'confirmed',
         payment_status: 'pending',
-        payment_amount: settings?.consultation_fee || 300,
+        payment_amount: consultationFee,
         tracker_url_token: trackerToken
       })
       .select()
@@ -290,11 +311,6 @@ router.post('/book', async (req, res) => {
       throw error;
     }
 
-    // 6. Get clinic + doctor name
-    const clinicName = doctorRecord?.tenants?.name || 'the clinic';
-    const clinicSubdomain = doctorRecord?.tenants?.subdomain || null;
-    const doctorName = doctorRecord?.name || 'the doctor';
-
     // 7. Send notification confirmation
     const appointmentDate = new Date(date).toLocaleDateString('en-IN', {
       weekday: 'long', day: 'numeric', month: 'long'
@@ -306,7 +322,7 @@ router.post('/book', async (req, res) => {
       `👨‍⚕️ ${doctorName}\n` +
       `📅 ${appointmentDate}\n` +
       `⏰ ${slotTime}\n` +
-      `💰 Fee: ₹${settings?.consultation_fee || 300}\n\n` +
+      `💰 Fee: ₹${consultationFee}\n\n` +
       `Track your appointment:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}\n\n` +
       `We'll remind you 1 hour before. 🦷`;
 
@@ -331,23 +347,29 @@ router.post('/book', async (req, res) => {
       console.warn('⚠️ Could not schedule reminders:', reminderErr.message);
     }
 
-    // 9. Notify clinic dashboard
-    io.to(`tenant:${tenantId}`).emit('appointment:new', {
-      patientName: cleanPatientName,
-      date,
-      slotTime,
-      doctorName,
-      priority
-    });
+    // 9. Notify clinic dashboard (best effort; should not fail booking response)
+    try {
+      if (io?.to) {
+        io.to(`tenant:${tenantId}`).emit('appointment:new', {
+          patientName: cleanPatientName,
+          date,
+          slotTime,
+          doctorName,
+          priority
+        });
 
-    // Also notify public clinic pages so patient-facing views refresh instantly.
-    if (clinicSubdomain) {
-      io.to(`clinic:${clinicSubdomain}`).emit('clinic:updated', {
-        type: 'appointment_booked',
-        date,
-        doctorId,
-        slotTime
-      });
+        // Also notify public clinic pages so patient-facing views refresh instantly.
+        if (clinicSubdomain) {
+          io.to(`clinic:${clinicSubdomain}`).emit('clinic:updated', {
+            type: 'appointment_booked',
+            date,
+            doctorId,
+            slotTime
+          });
+        }
+      }
+    } catch (socketErr) {
+      console.warn('Socket broadcast failed after booking:', socketErr.message);
     }
 
     res.status(201).json({
@@ -356,7 +378,7 @@ router.post('/book', async (req, res) => {
       trackerUrl: `/track-appointment/${trackerToken}`,
       date,
       slotTime,
-      consultationFee: settings?.consultation_fee || 300,
+      consultationFee,
       clinicName,
       doctorName,
       message: `Appointment confirmed for ${appointmentDate} at ${slotTime}`
