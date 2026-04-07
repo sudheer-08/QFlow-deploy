@@ -111,15 +111,48 @@ router.post('/test', authenticate, async (req, res) => {
   }
 });
 
+// Authenticated endpoint to inspect the caller's active push token registrations.
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const { data: rows, error } = await supabase
+      .from('user_push_tokens')
+      .select('token, platform, is_active, last_seen_at, created_at')
+      .eq('user_id', req.user.id)
+      .eq('is_active', true)
+      .order('last_seen_at', { ascending: false });
+
+    if (error) throw error;
+
+    const tokens = (rows || []).map((row) => ({
+      token_preview: row.token ? `${row.token.slice(0, 12)}...${row.token.slice(-8)}` : null,
+      platform: row.platform,
+      is_active: row.is_active,
+      last_seen_at: row.last_seen_at,
+      created_at: row.created_at
+    }));
+
+    return res.json({
+      user_id: req.user.id,
+      firebase_configured: firebaseEnabled(),
+      active_token_count: tokens.length,
+      active_tokens: tokens
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Diagnostic endpoint (no auth required)
 router.get('/status', async (req, res) => {
   try {
     const firebaseConfigured = firebaseEnabled();
-    
-    const { data: tokenCount } = await supabase
+
+    const { count: tokenCount, error } = await supabase
       .from('user_push_tokens')
       .select('user_id', { count: 'exact', head: true })
       .eq('is_active', true);
+
+    if (error) throw error;
 
     return res.json({
       firebase_configured: firebaseConfigured,
