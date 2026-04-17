@@ -8,16 +8,11 @@ import { isEmail, isNonEmptyString, isPhone, normalizeEmail, normalizePhone } fr
 import socket, { connectPublicClinic } from '../socket'
 import './BookAppointmentPage.css'
 
-const isUuid = (value) => {
-  if (typeof value !== 'string') return false
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
-}
-
-const getDoctorUuid = (doctor) => {
+const getDoctorId = (doctor) => {
   if (!doctor) return ''
   const candidates = [doctor.id, doctor.doctorId, doctor.doctor_id, doctor.userId, doctor.user_id]
-  const match = candidates.find(v => typeof v === 'string' && isUuid(v))
-  return match || ''
+  const match = candidates.find(v => typeof v === 'string' && v.trim())
+  return match ? match.trim() : ''
 }
 
 const matchesDoctorParam = (doctor, rawDoctorParam) => {
@@ -56,7 +51,7 @@ export default function BookAppointmentPage() {
 
   const [step, setStep] = useState(1)
   const [selected, setSelected] = useState({
-    doctorId: preselectedDoctor || '',
+    doctorId: '',
     doctorName: '',
     date: new Date().toISOString().split('T')[0],
     slot: '',
@@ -70,7 +65,7 @@ export default function BookAppointmentPage() {
   const [oldAppointment, setOldAppointment] = useState(null)
   const [rescheduleError, setRescheduleError] = useState('')
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
-  const selectedDoctorIdIsValid = isUuid(selected.doctorId)
+  const selectedDoctorIdIsValid = isNonEmptyString(selected.doctorId, 1)
   const safeSubdomain = subdomain && subdomain !== 'undefined' ? subdomain : ''
   const resolvedSubdomain = safeSubdomain || oldAppointment?.tenants?.subdomain || ''
 
@@ -134,9 +129,9 @@ export default function BookAppointmentPage() {
   useEffect(() => {
     if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {
       const doc = clinic.doctors.find(d => matchesDoctorParam(d, preselectedDoctor))
-      const doctorUuid = getDoctorUuid(doc)
-      if (doc && doctorUuid) {
-        setSelected(prev => ({ ...prev, doctorId: doctorUuid, doctorName: doc.name, fee: doc.consultationFee || 300 }))
+      const doctorId = getDoctorId(doc)
+      if (doc && doctorId) {
+        setSelected(prev => ({ ...prev, doctorId, doctorName: doc.name, fee: doc.consultationFee || 300 }))
       }
     }
   }, [clinic, preselectedDoctor, selected.doctorName])
@@ -310,17 +305,17 @@ export default function BookAppointmentPage() {
           <p className="ba-label">Select Doctor</p>
           <div className="ba-doctor-grid">
             {(clinic?.doctors || []).map(doc => {
-              const docUuid = getDoctorUuid(doc)
-              const isActive = selected.doctorId === docUuid
+              const doctorId = getDoctorId(doc)
+              const isActive = selected.doctorId.trim() === doctorId
               return (
                 <button
-                  key={docUuid || doc.id || doc.name}
+                  key={doctorId || doc.id || doc.name}
                   type="button"
-                  disabled={!docUuid}
+                  disabled={!doctorId}
                   className={`ba-doctor-card ${isActive ? 'is-active' : ''}`}
                   onClick={() => {
-                    if (!docUuid) return
-                    setSelected({ ...selected, doctorId: docUuid, doctorName: doc.name, fee: doc.consultationFee || 300 })
+                    if (!doctorId) return
+                    setSelected(prev => ({ ...prev, doctorId, doctorName: doc.name, fee: doc.consultationFee || 300 }))
                   }}
                 >
                   <div className="ba-doctor-line">
@@ -333,6 +328,7 @@ export default function BookAppointmentPage() {
                       <small>{doc.queueCount || 0} waiting</small>
                     </div>
                   </div>
+                  {isActive && <span className="ba-doctor-selected">Selected</span>}
                 </button>
               )
             })}

@@ -200,7 +200,7 @@ export default function PatientHomePage() {
       <section className="ph-hero">
         <div className="ph-hero-copy">
           <p className="ph-kicker">Live Care Discovery</p>
-          <h1>Choose the right clinic in minutes, not hours.</h1>
+          <h1 className="display-font">Choose the right clinic in minutes, not hours.</h1>
           <p className="ph-hero-text">
             Compare wait times, ratings, and distance in one place. Built for faster, smarter patient decisions.
           </p>
@@ -369,7 +369,7 @@ export default function PatientHomePage() {
                         }
                       </div>
 
-                      <h3>{specIcon(clinic.specialization)} {clinic.name}</h3>
+                      <h3 className="headline-font">{specIcon(clinic.specialization)} {clinic.name}</h3>
                       <p>{clinic.address}</p>
                       <div className="ph-meta-line">
                         <span>{clinic.open_time?.slice(0, 5)} - {clinic.close_time?.slice(0, 5)}</span>
@@ -378,10 +378,10 @@ export default function PatientHomePage() {
                     </div>
 
                     <div className="ph-queue-block">
-                      <strong className={`ph-queue-num ${(clinic.totalWaiting || 0) > 10 ? 'is-high' : (clinic.totalWaiting || 0) > 5 ? 'is-mid' : 'is-low'}`}>
-                        {clinic.totalWaiting || 0}
-                      </strong>
-                      <span>in queue</span>
+                      <div className="live-queue-pill">
+                        <div className="live-queue-dot"></div>
+                        {clinic.totalWaiting || 0} in queue
+                      </div>
                       <em>~{(clinic.totalWaiting || 0) * 8} min</em>
                     </div>
                   </div>

@@ -37,7 +37,7 @@ const generateSlots = (start, end, durationMins) => {
 router.get('/slots', async (req, res) => {
   try {
     const { doctorId, date } = req.query;
-    assert(isUuid(doctorId), 'doctorId must be a valid UUID');
+    assert(isNonEmptyString(doctorId, 1), 'doctorId is required');
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
 
     let { data: settings } = await supabase
@@ -130,7 +130,7 @@ router.post('/book', async (req, res) => {
     const cleanEmail = email ? normalizeEmail(email) : null;
 
     assert(isUuid(tenantId), 'tenantId must be a valid UUID');
-    assert(isUuid(doctorId), 'doctorId must be a valid UUID');
+    assert(isNonEmptyString(doctorId, 1), 'doctorId is required');
     if (loggedInPatientId) {
       assert(isUuid(loggedInPatientId), 'patientId must be a valid UUID');
     }
