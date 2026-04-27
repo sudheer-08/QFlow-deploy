@@ -1,221 +1,381 @@
-# QFlow — Clinic Queue Management System
+# QFlow
 
-> Multi-tenant SaaS platform for real-time clinic queue management with AI triage,
-> patient self-registration, Firebase notifications, and live queue tracking.
-> **100% free stack. No credit card. No debit card.**
+Multi-tenant clinic queue and appointment platform with real-time updates, AI-assisted triage/chat, role-based dashboards, and push notifications.
 
----
+## What This Project Includes
+
+- Staff workflows for reception, doctors, and clinic admins
+- Patient workflows for clinic discovery, booking, queue tracking, family profiles, and health records
+- Real-time queue events over Socket.io
+- AI integrations using Groq (symptom triage + clinic assistant chat)
+- Push notifications using Firebase Cloud Messaging (web)
+- Background reminders and notification queue using Bull + Redis
+- Supabase PostgreSQL schema for tenants, users, queue, appointments, reviews, waitlist, and more
 
 ## Tech Stack
 
-| Layer | Technology | Cost |
-|---|---|---|
-| Frontend | React 18 + Vite + Tailwind | Free |
-| Backend | Node.js + Express + Socket.io | Free |
-| Database | Supabase (PostgreSQL) | Free |
-| AI Triage | Groq API (Llama 3) | Free |
-| Notifications | Firebase Cloud Messaging | Free |
-| Maps | Leaflet + OpenStreetMap | Free |
-| Deployment | Vercel + Koyeb | Free |
+### Frontend (apps/web)
 
----
+- React 18 + Vite 5
+- React Router 6
+- TanStack Query 5
+- Axios
+- Zustand
+- Socket.io Client
+- Recharts
+- Leaflet + OpenStreetMap
+- Firebase Web SDK (messaging)
+- TailwindCSS + custom CSS
 
-## Step 1 — Create Accounts (Do this first, ~45 minutes)
+### Backend (apps/api)
 
-1. **GitHub** → github.com → Sign up → Create repo named `qflow`
-2. **Supabase** → supabase.com → Sign up with GitHub → Create project → Copy URL + keys
-3. **Groq** → console.groq.com → Sign up → Create API key
-4. **Firebase project** → Create a web app, enable Cloud Messaging, and copy the config values
-5. **Vercel** → vercel.com → Sign up with GitHub
-6. **Koyeb** → koyeb.com → Sign up with GitHub
+- Node.js + Express
+- Supabase JS client
+- Socket.io
+- JWT auth + role guards
+- Bull + ioredis
+- Firebase Admin SDK
+- Groq SDK (Llama models)
+- bcryptjs
+- Helmet, CORS, compression, morgan, express-rate-limit
+- Jest
 
----
+### Infrastructure
 
-## Step 2 — Setup Database
+- Supabase (PostgreSQL)
+- Redis (local via Docker Compose)
+- Vercel config included for SPA frontend routing
 
-1. Go to **Supabase Dashboard → SQL Editor → New Query**
-2. Copy the entire contents of `supabase_schema.sql`
-3. Paste and click **Run**
-4. You should see all tables created successfully
+## Repository Structure
 
----
-
-## Step 3 — Setup on Your Windows PC
-
-### Prerequisites (you said you have these)
-- Node.js 18+ ✅
-- Docker Desktop ✅
-- VS Code ✅
-- Git ✅
-
-### Commands — open PowerShell or VS Code terminal
-
-```powershell
-# 1. Clone your repo (after pushing this code to GitHub)
-git clone https://github.com/YOUR_USERNAME/qflow.git
-cd qflow
-
-# 2. Start Redis (Docker must be running)
-docker-compose up -d
-
-# 3. Setup backend
-cd apps\api
-copy .env.example .env
-# Open .env in VS Code and fill in your keys
-npm install
-npm run dev
-# Backend runs on http://localhost:5000
-
-# 4. Open a NEW terminal tab, setup frontend
-cd apps\web
-copy .env.example .env
-# Open .env in VS Code and fill in your keys
-npm install
-npm run dev
-# Frontend runs on http://localhost:5173
-```
-
----
-
-## Step 4 — Fill in .env Files
-
-### apps/api/.env
-```
-PORT=5000
-NODE_ENV=development
-SUPABASE_URL=           ← from supabase.com project settings
-SUPABASE_SERVICE_KEY=   ← service_role key from supabase.com
-JWT_ACCESS_SECRET=      ← run: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-JWT_REFRESH_SECRET=     ← run same command again for a different value
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-GROQ_API_KEY=           ← from console.groq.com
-# WhatsApp Web.js local mode uses QR scan and .wwebjs_auth session directory
-REDIS_URL=redis://localhost:6379
-FRONTEND_URL=http://localhost:5173
-CLINIC_TIMEZONE=Asia/Kolkata
-AUTH_RATE_LIMIT_PER_15_MIN=25
-```
-
-### apps/web/.env
-```
-VITE_API_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-VITE_SUPABASE_URL=      ← same as backend
-VITE_SUPABASE_ANON_KEY= ← anon public key from supabase.com
-```
-
----
-
-## Step 5 — Test It Works
-
-Open your browser and go to:
-
-| URL | What you see |
-|---|---|
-| http://localhost:5173/login | Login screen |
-| http://localhost:5173/join/citycare | Patient self-register page |
-| http://localhost:5000/health | `{"status":"ok"}` — backend working |
-
-### Test login credentials (from sample data in schema):
-- **Admin:** admin@citycare.com / admin123
-- **Doctor:** doctor@citycare.com / admin123
-- **Reception:** reception@citycare.com / admin123
-
----
-
-## Project Structure
-
-```
+```text
 qflow/
 ├── apps/
-│   ├── web/              React frontend (port 5173)
-│   │   └── src/
-│   │       ├── pages/    All screen components
-│   │       ├── services/ API calls
-│   │       ├── store/    Auth state (Zustand)
-│   │       └── socket/   Real-time Socket.io
-│   └── api/              Node.js backend (port 5000)
-│       └── src/
-│           ├── routes/   API endpoints
-│           ├── services/ AI + notifications
-│           ├── middleware/ Auth + rate limiting
-│           └── socket/   Real-time handlers
-├── supabase_schema.sql   Run this in Supabase first
-├── docker-compose.yml    Starts Redis
-└── README.md             This file
+│   ├── api/
+│   │   ├── src/
+│   │   │   ├── routes/           # API routes (auth, queue, appointments, etc.)
+│   │   │   ├── services/         # ai, notifications, push
+│   │   │   ├── jobs/             # reminders, no-show checker
+│   │   │   ├── middleware/       # auth guards
+│   │   │   ├── socket/           # socket event handlers
+│   │   │   ├── models/           # supabase client
+│   │   │   └── utils/            # validation, logging, error handler
+│   │   ├── .env.example
+│   │   └── package.json
+│   ├── web/
+│   │   ├── src/
+│   │   │   ├── pages/            # patient/staff/admin/reception pages
+│   │   │   ├── components/
+│   │   │   ├── services/         # api + push
+│   │   │   ├── socket/
+│   │   │   ├── store/
+│   │   │   └── utils/
+│   │   ├── public/
+│   │   │   └── firebase-messaging-sw.js
+│   │   ├── .env.example
+│   │   ├── vercel.json
+│   │   └── package.json
+│   └── package-lock.json
+├── docker-compose.yml            # Redis for jobs/reminders
+├── supabase_schema.sql           # Full DB schema + sample seed
+└── README.md
 ```
 
-## Recommended Project Flow (Local, Production-like)
+## Core Product Flows
 
-1. Start infrastructure first: run Redis via Docker before backend startup.
-2. Start API second: run backend, verify `/health`.
-3. Start web app third: run Vite app and verify login, join, queue live updates.
-4. Run safety checks each day: `npm --prefix apps/api run test` before changes.
-5. Keep delayed notifications durable: keep Redis running so reminders and rating requests survive restarts.
-6. Apply schema updates before pulling new code: rerun `supabase_schema.sql` when backend schema changes are introduced.
+### Staff
 
-## Recommended Backend Structure
+- Login: receptionist, doctor, clinic admin
+- Reception dashboard: live queue, register walk-ins, call/complete/no-show flows
+- Doctor dashboard: consultation and prescription workflows
+- Admin dashboards: analytics, revenue, communications, performance, profile, PIN management
 
-1. `routes/` for HTTP boundary and validation.
-2. `services/` for integrations and notification logic.
-3. `jobs/` for delayed/retry background tasks.
-4. `middleware/` for auth, rate limits, and request context.
-5. `utils/` for shared validation and timezone/date helpers.
+### Patient
 
----
+- Landing + search + clinic detail
+- Patient auth and dashboard
+- Book appointment by clinic subdomain
+- Track token/appointment live
+- Join queue remotely (self-registration)
+- Rate visit and provide feedback
+- Family profiles and health records
 
-## Pages & URLs
+### Real-Time
 
-| URL | Who Uses It | Login? |
-|---|---|---|
-| /login | All staff | No |
-| /reception | Receptionist | Yes |
-| /doctor | Doctor | Yes |
-| /admin | Clinic Admin | Yes |
-| /display?tenant=ID | TV screen | No |
-| /join/:subdomain | Patients | No |
-| /track/:token | Patients | No |
+Socket rooms are used for separation by context:
 
----
+- tenant:<tenantId> for authenticated clinic staff
+- tracker:<trackerToken> for patient tracking pages
+- clinic:<subdomain> for public clinic/booking pages
 
-## Deploy to Production (Free)
+## Backend Architecture Notes
 
-### Frontend → Vercel
-```powershell
-# In apps/web folder
-npm install -g vercel
-vercel
-# Follow prompts — it deploys automatically
+- Entry point: apps/api/src/index.js
+- Required env checks on startup (Supabase + JWT secrets)
+- Both unversioned and v1 APIs are mounted (for example /api/auth and /api/v1/auth)
+- Health endpoints:
+  - /health
+  - /api/v1/health
+- Security middleware:
+  - helmet
+  - cors with allowlist
+  - express-rate-limit for API/public/auth/chat
+  - request IDs + morgan logging
+- Background jobs started at boot:
+  - reminders queue (Bull/Redis)
+  - no-show checker interval
+
+## API Route Map (High Level)
+
+Mounted under /api and mirrored under /api/v1 for most modules:
+
+- auth
+- queue
+- doctors
+- public
+- analytics
+- patient
+- appointments
+- reviews
+- chat
+- health-records
+- family
+- holidays
+- advanced-analytics
+- qr
+- intake
+- doctor-brief
+- no-show
+- revenue
+- communications
+- performance
+- push
+- pin
+- clinic-profile
+- follow-up
+- post-visit
+- booking-requests
+
+Additional:
+
+- /health
+- /api/v1/health
+
+## Database Schema Summary
+
+supabase_schema.sql creates these main tables:
+
+- tenants
+- users
+- queue_entries
+- self_registration_settings
+- appointments
+- doctor_slot_settings
+- clinic_reviews
+- consultation_notes
+- family_members
+- clinic_holidays
+- chat_sessions
+- waitlist
+- user_push_tokens
+
+Also included:
+
+- indexes for queue/search performance
+- DB-level format constraints (email/phone/password hash checks)
+- normalization triggers
+- RLS enablement on selected tables
+- sample seed clinic and users (City Care)
+
+## Local Setup
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+- Docker Desktop (for Redis)
+- Supabase project
+- Groq API key
+- Firebase project (if using push notifications)
+
+### 1) Clone
+
+```bash
+git clone https://github.com/sudheer-08/QFlow-deploy.git
+cd qflow
 ```
 
-### Backend → Koyeb
-1. Push code to GitHub
-2. Go to koyeb.com → Create App → Connect GitHub → Select `apps/api`
-3. Set all env variables from your `.env` file
-4. Deploy — Koyeb gives you a free URL
+### 2) Start Redis
 
----
+```bash
+docker-compose up -d
+```
 
-## Common Issues on Windows
+### 3) Configure Backend
 
-**Docker not starting Redis?**
-→ Make sure Docker Desktop is open and running before `docker-compose up -d`
+```bash
+cd apps/api
+cp .env.example .env
+```
 
-**`npm run dev` fails with port in use?**
-→ Run `netstat -ano | findstr :5000` to find and kill the process
+Fill values in apps/api/.env:
 
-**Supabase connection error?**
-→ Double-check SUPABASE_URL and SUPABASE_SERVICE_KEY in your .env file
+- PORT, NODE_ENV
+- SUPABASE_URL
+- SUPABASE_SERVICE_KEY
+- JWT_ACCESS_SECRET
+- JWT_REFRESH_SECRET
+- JWT_ACCESS_EXPIRES_IN
+- JWT_REFRESH_EXPIRES_IN
+- GROQ_API_KEY
+- FIREBASE_PROJECT_ID (optional but needed for push)
+- FIREBASE_CLIENT_EMAIL (optional but needed for push)
+- FIREBASE_PRIVATE_KEY (optional but needed for push)
+- REDIS_URL
+- FRONTEND_URL
+- CLINIC_TIMEZONE
+- AUTH_RATE_LIMIT_PER_15_MIN
+- API_RATE_LIMIT_PER_MIN
+- PUBLIC_RATE_LIMIT_PER_MIN
 
-**Push notifications not sending?**
-→ Check `http://localhost:5000/health` and confirm `checks.push.status` is `ok`.
+Start backend:
 
-→ Apply the SQL that creates `user_push_tokens` (from `supabase_schema.sql`) in your Supabase project, then restart the API.
+```bash
+npm install
+npm run dev
+```
 
-→ Confirm Firebase env vars are set, browser notification permission is granted, and a row exists in `user_push_tokens` for the logged-in user.
+Default backend URL: http://localhost:5000
 
----
+### 4) Configure Frontend
 
-## Built With ❤️ for Final Year Placement + Hackathons
-# QFlow-deploy
+```bash
+cd ../web
+cp .env.example .env
+```
+
+Fill values in apps/web/.env:
+
+- VITE_API_URL
+- VITE_SOCKET_URL
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
+- VITE_FIREBASE_API_KEY (optional unless push used)
+- VITE_FIREBASE_AUTH_DOMAIN (optional unless push used)
+- VITE_FIREBASE_PROJECT_ID (optional unless push used)
+- VITE_FIREBASE_STORAGE_BUCKET (optional unless push used)
+- VITE_FIREBASE_MESSAGING_SENDER_ID (optional unless push used)
+- VITE_FIREBASE_APP_ID (optional unless push used)
+- VITE_FIREBASE_MEASUREMENT_ID (optional)
+- VITE_FIREBASE_VAPID_KEY (optional unless push used)
+
+Start frontend:
+
+```bash
+npm install
+npm run dev
+```
+
+Default frontend URL: http://localhost:5173
+
+### 5) Initialize Database
+
+Run supabase_schema.sql in Supabase SQL Editor.
+
+The schema includes sample credentials:
+
+- admin@citycare.com / admin123
+- doctor@citycare.com / admin123
+- reception@citycare.com / admin123
+
+## Development Scripts
+
+### Backend (apps/api)
+
+```bash
+npm run dev
+npm start
+npm test
+```
+
+### Frontend (apps/web)
+
+```bash
+npm run dev
+npm run build
+npm run preview
+```
+
+## Verified Local Checks
+
+These were executed successfully in this repository:
+
+- Backend tests: npm --prefix apps/api test -- --runInBand
+- Frontend build: npm --prefix apps/web run build
+
+## Push Notifications (FCM)
+
+### Backend requirements
+
+Set Firebase Admin env values:
+
+- FIREBASE_PROJECT_ID
+- FIREBASE_CLIENT_EMAIL
+- FIREBASE_PRIVATE_KEY
+
+### Frontend requirements
+
+Set Firebase web env values and VAPID key.
+
+### Token storage
+
+- Device/browser tokens are stored in user_push_tokens.
+- Inactive/invalid tokens are marked inactive automatically.
+
+### Useful endpoints
+
+- POST /api/push/token
+- DELETE /api/push/token
+- POST /api/push/test
+- GET /api/push/me
+- GET /api/push/status
+
+## Deployment Notes
+
+### Frontend
+
+- apps/web/vercel.json includes SPA rewrites to index.html.
+- Suitable for Vercel static hosting.
+
+### Backend
+
+- Deploy apps/api to any Node host (Koyeb, Render, Fly, etc.).
+- Ensure Supabase, JWT, Redis, and optional Firebase env vars are set.
+- Keep FRONTEND_URL and CORS origins aligned with your deployed frontend domain.
+
+## Troubleshooting
+
+### Redis warnings on startup
+
+If Redis is down, reminder queue features are degraded. Start Redis and restart API.
+
+### CORS blocked
+
+Set FRONTEND_URL and/or CORS_ALLOWED_ORIGINS correctly in backend env.
+
+### Push not working
+
+- Confirm Firebase env vars on backend
+- Confirm frontend Firebase/VAPID env vars
+- Confirm browser permission is granted
+- Confirm rows exist in user_push_tokens
+- Check /health and /api/push/status
+
+### Auth loop or unexpected logout
+
+The frontend auto-refreshes access tokens. Ensure refresh token endpoint and JWT secrets are correctly configured.
+
+## Recent Updates
+
+- Staff login Sign In button visibility improved in disabled state
+- Booking flow fixed so Next • Pick Time Slot enables reliably after doctor selection
