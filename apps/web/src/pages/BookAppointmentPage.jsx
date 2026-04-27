@@ -4,21 +4,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import VoiceInput from '../components/VoiceInput'
 import { useToast } from '../components/Toast'
 import { useAuthStore } from '../store/authStore'
-import { isEmail, isNonEmptyString, isPhone, normalizeEmail, normalizePhone } from '../utils/validation'
+import { isEmail, isPhone, normalizeEmail, normalizePhone } from '../utils/validation'
 import socket, { connectPublicClinic } from '../socket'
 import './BookAppointmentPage.css'
 
 const getDoctorId = (doctor) => {
   if (!doctor) return ''
   const candidates = [doctor.id, doctor.doctorId, doctor.doctor_id, doctor.userId, doctor.user_id]
-  const match = candidates.find(v => typeof v === 'string' && v.trim())
-  return match ? match.trim() : ''
+  const match = candidates.find(v => v !== null && v !== undefined && String(v).trim())
+  return match ? String(match).trim() : ''
 }
 
 const matchesDoctorParam = (doctor, rawDoctorParam) => {
   if (!doctor || !rawDoctorParam) return false
   const candidates = [doctor.id, doctor.doctorId, doctor.doctor_id, doctor.userId, doctor.user_id]
-  return candidates.some(v => String(v) === rawDoctorParam)
+  return candidates.some(v => String(v ?? '').trim() === String(rawDoctorParam).trim())
 }
 
 const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
@@ -65,7 +65,7 @@ export default function BookAppointmentPage() {
   const [oldAppointment, setOldAppointment] = useState(null)
   const [rescheduleError, setRescheduleError] = useState('')
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
-  const selectedDoctorIdIsValid = isNonEmptyString(selected.doctorId, 1)
+  const selectedDoctorIdIsValid = String(selected.doctorId ?? '').trim().length > 0
   const safeSubdomain = subdomain && subdomain !== 'undefined' ? subdomain : ''
   const resolvedSubdomain = safeSubdomain || oldAppointment?.tenants?.subdomain || ''
 

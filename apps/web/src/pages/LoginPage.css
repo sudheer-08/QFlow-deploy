@@ -132,8 +132,9 @@
 }
 
 .sl-submit:disabled {
-  background: #dce3f8;
-  color: #8d97b9;
+  background: #d3def8;
+  color: #2f4577;
+  opacity: 1;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
