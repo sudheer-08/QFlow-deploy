@@ -132,6 +132,7 @@ export default function PatientHomePage() {
   const [locationError, setLocationError] = useState('')
   const [visibleClinics, setVisibleClinics] = useState([])
   const listEndRef = useRef(null)
+  const listContainerRef = useRef(null)
   const observerTarget = useRef(null)
 
   // Fetch clinic stats for area filters
@@ -163,22 +164,36 @@ export default function PatientHomePage() {
   } = useInfiniteQuery({
     queryKey: ['clinics-paginated', selectedCity, sortBy],
     queryFn: async ({ pageParam = 0 }) => {
-      const params = new URLSearchParams({
-        limit: '10',
-        offset: pageParam,
-        ...(selectedCity !== 'all' && { city: selectedCity }),
-        sortBy
-      })
-      const r = await fetch(`${import.meta.env.VITE_API_URL}/patient/clinics?${params}`)
-      return r.json()
+      try {
+        const params = new URLSearchParams({
+          limit: '10',
+          offset: pageParam,
+          ...(selectedCity !== 'all' && { city: selectedCity }),
+          sortBy
+        })
+        const r = await fetch(`${import.meta.env.VITE_API_URL}/patient/clinics?${params}`)
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const data = await r.json()
+        return data || { clinics: [], pagination: { offset: pageParam, limit: 10, total: 0, hasMore: false } }
+      } catch (err) {
+        console.error('Fetch error:', err)
+        return { clinics: [], pagination: { offset: pageParam, limit: 10, total: 0, hasMore: false } }
+      }
     },
     getNextPageParam: (lastPage) => {
-      if (!lastPage.pagination.hasMore) return undefined
-      return lastPage.pagination.offset + lastPage.pagination.limit
+      const pagination = lastPage?.pagination
+      if (!pagination) return undefined
+      const hasMore = pagination.hasMore === true
+      if (!hasMore) return undefined
+      const nextOffset = (pagination.offset || 0) + (pagination.limit || 10)
+      return nextOffset
     },
     staleTime: 30000,
     enabled: !search // Disable pagination when searching
   })
+
+  // Compute if there are more clinics
+  const canLoadMore = hasNextPage === true
 
   // Search functionality
   const { data: searchResults, isLoading: searchLoading } = useQuery({
@@ -220,25 +235,33 @@ export default function PatientHomePage() {
 
   // Infinite scroll observer
   useEffect(() => {
+    const scrollContainer = listContainerRef.current
+    const targetElement = observerTarget.current
+
+    if (!scrollContainer || !targetElement || !canLoadMore) return
+
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage && !search) {
-          fetchNextPage()
-        }
+        entries.forEach(entry => {
+          if (entry.isIntersecting && canLoadMore && !isFetchingNextPage && !search) {
+            console.log('Intersection detected, fetching next page')
+            fetchNextPage?.()
+          }
+        })
       },
-      { threshold: 0.1 }
+      {
+        root: scrollContainer,
+        threshold: 0.1,
+        rootMargin: '50px'
+      }
     )
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
+    observer.observe(targetElement)
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current)
-      }
+      observer.unobserve(targetElement)
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, search])
+  }, [canLoadMore, isFetchingNextPage, fetchNextPage, search])
 
   // Get location
   const getUserLocation = useCallback(() => {
@@ -288,6 +311,19 @@ export default function PatientHomePage() {
 
   const isLoading = clinicsLoading && !allClinics.length
   const isSearching = searchLoading && search.length >= 2
+
+  // Debug logs
+  useEffect(() => {
+    console.log('Pagination state:', {
+      canLoadMore,
+      hasNextPage,
+      isFetchingNextPage,
+      totalPages: clinicsData?.pages?.length,
+      allClinicsCount: allClinics.length,
+      visibleClinicsCount: visibleClinics.length,
+      pagination: clinicsData?.pages?.[clinicsData.pages.length - 1]?.pagination
+    })
+  }, [canLoadMore, hasNextPage, isFetchingNextPage, clinicsData, allClinics.length, visibleClinics.length])
 
   return (
     <div className="ph-shell">
@@ -480,7 +516,7 @@ export default function PatientHomePage() {
           </div>
         </div>
 
-        <div className="ph-list-col">
+        <div className="ph-list-col" ref={listContainerRef}>
           <div className="ph-list-head">
             <h2>
               {search && search.length >= 2 ? 'Search Results' : `${visibleClinics.length} Clinics`}
@@ -514,17 +550,36 @@ export default function PatientHomePage() {
               </div>
 
               {/* Infinite scroll trigger */}
-              {!search && hasNextPage && (
-                <div ref={observerTarget} className="ph-infinite-scroll-trigger">
-                  {isFetchingNextPage ? (
-                    <div className="ph-loading-more">
-                      <Loader size={16} className="spinner" />
-                      <span>Loading more clinics...</span>
+              {!search && (
+                <>
+                  {canLoadMore ? (
+                    <div 
+                      ref={observerTarget} 
+                      className="ph-infinite-scroll-trigger"
+                    >
+                      {isFetchingNextPage ? (
+                        <div className="ph-loading-more">
+                          <Loader size={16} className="spinner" />
+                          <span>Loading more clinics...</span>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => fetchNextPage?.()}
+                          className="ph-load-more-btn"
+                          type="button"
+                          disabled={isFetchingNextPage}
+                        >
+                          Load More Clinics
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div className="ph-load-more-hint">Scroll for more</div>
+                    <div className="ph-end-message">
+                      <p>✓ You've reached the end</p>
+                      <span>No more clinics to show</span>
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               {/* Show pagination info */}

@@ -404,6 +404,26 @@
 .ph-list-col {
   display: grid;
   gap: 2rem;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.ph-list-col::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ph-list-col::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ph-list-col::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.ph-list-col::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .ph-list-head {
@@ -654,7 +674,8 @@
   justify-content: center;
   align-items: center;
   padding: 2rem 1rem;
-  margin-top: 1rem;
+  margin: 2rem 0;
+  min-height: 60px;
 }
 
 .ph-loading-more {
@@ -680,6 +701,61 @@
   color: var(--qf-text-variant);
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
+}
+
+.ph-load-more-btn {
+  background: var(--qf-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 32px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(18, 84, 255, 0.3);
+}
+
+.ph-load-more-btn:hover {
+  background: linear-gradient(135deg, var(--qf-primary), #0a3acc);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(18, 84, 255, 0.4);
+}
+
+.ph-load-more-btn:active {
+  transform: translateY(0);
+}
+
+.ph-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ph-end-message {
+  text-align: center;
+  padding: 2rem 1rem;
+  margin: 2rem 0;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  border-top: 3px solid #10b981;
+}
+
+.ph-end-message p {
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 0.5rem;
+}
+
+.ph-end-message span {
+  display: block;
+  color: var(--qf-text-variant);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
 }
 
 .ph-pagination-info {
@@ -736,6 +812,12 @@
 
 /* Responsive optimization */
 @media (max-width: 768px) {
+  .ph-list-col {
+    max-height: auto;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
   .ph-map-card {
     position: static;
     height: 300px;
