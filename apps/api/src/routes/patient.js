@@ -14,23 +14,50 @@ const {
 } = require('../utils/validation');
 
 // ─── GET /api/patient/clinics ─────────────────────────
-// Public — get all active clinics with live queue counts
+// Public — get active clinics with pagination & optional filters
+// Query params: limit (default 10), offset (default 0), city, sortBy (wait|rating|combined)
 router.get('/clinics', async (req, res) => {
   try {
     const today = getLocalDateString();
     const { start } = getDayBounds(today);
+    
+    // Pagination params
+    const limit = Math.min(parseInt(req.query.limit) || 10, 100); // max 100
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const city = req.query.city ? req.query.city.toLowerCase() : '';
+    const sortBy = req.query.sortBy || 'wait'; // wait, rating, combined
 
-    // Get all active clinics
-    const { data: clinics, error } = await supabase
+    // Build query
+    let query = supabase
       .from('tenants')
-      .select('id, name, subdomain, address, city, lat, lng, phone, open_time, close_time, specialization, rating, total_reviews')
-      .eq('is_active', true)
-      .order('rating', { ascending: false });
+      .select('id, name, subdomain, address, city, lat, lng, phone, open_time, close_time, specialization, rating, total_reviews', { count: 'exact' })
+      .eq('is_active', true);
+
+    if (city && city !== 'all') {
+      query = query.ilike('city', `%${city}%`);
+    }
+
+    // Get total count first
+    const { count: totalCount } = await query;
+
+    // Apply ordering and pagination
+    if (sortBy === 'rating') {
+      query = query.order('rating', { ascending: false });
+    } else if (sortBy === 'combined') {
+      // Combined: ratings first, then by waiting (weighted)
+      query = query.order('rating', { ascending: false });
+    } else {
+      // Default: by waiting (will be computed after fetching)
+      query = query.order('name', { ascending: true });
+    }
+
+    const { data: clinics, error } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
 
     const clinicIds = clinics.map((clinic) => clinic.id);
 
+    // Fetch queue and doctor counts in parallel
     const [{ data: queueEntries }, { data: doctors }] = await Promise.all([
       supabase
         .from('queue_entries')
@@ -56,20 +83,163 @@ router.get('/clinics', async (req, res) => {
       doctorsByClinic.set(doctor.tenant_id, (doctorsByClinic.get(doctor.tenant_id) || 0) + 1);
     });
 
-    const enriched = clinics.map((clinic) => ({
+    let enriched = clinics.map((clinic) => ({
       ...clinic,
       totalWaiting: waitingByClinic.get(clinic.id) || 0,
       doctorCount: doctorsByClinic.get(clinic.id) || 0
     }));
 
-    res.json(enriched);
+    // Sort by waiting if applicable
+    if (sortBy === 'wait') {
+      enriched.sort((a, b) => (a.totalWaiting || 0) - (b.totalWaiting || 0));
+    } else if (sortBy === 'combined') {
+      enriched.sort((a, b) => {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return (a.totalWaiting || 0) - (b.totalWaiting || 0);
+      });
+    }
+
+    res.json({
+      clinics: enriched,
+      pagination: {
+        limit,
+        offset,
+        total: totalCount,
+        hasMore: offset + limit < (totalCount || 0)
+      }
+    });
   } catch (err) {
     console.error('Clinics fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch clinics' });
   }
 });
 
-// ─── GET /api/patient/clinics/:subdomain ─────────────
+// ─── GET /api/patient/clinics/stats ──────────────────
+// Get summary stats (clinic counts by city, total)
+router.get('/clinics/stats', async (req, res) => {
+  try {
+    const { data: clinics, error } = await supabase
+      .from('tenants')
+      .select('city')
+      .eq('is_active', true);
+
+    if (error) throw error;
+
+    const cityCounts = {};
+    let total = 0;
+    (clinics || []).forEach((clinic) => {
+      const city = clinic.city || 'Unknown';
+      cityCounts[city] = (cityCounts[city] || 0) + 1;
+      total++;
+    });
+
+    res.json({
+      stats: {
+        total,
+        byCity: cityCounts
+      }
+    });
+  } catch (err) {
+    console.error('Clinics stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// ─── GET /api/patient/search-clinics ─────────────────
+// Search clinics by name, area, specialization, or doctor name
+// Query: q (search term), limit (default 10)
+router.get('/search-clinics', async (req, res) => {
+  try {
+    const today = getLocalDateString();
+    const { start } = getDayBounds(today);
+    const searchTerm = (req.query.q || '').toLowerCase().trim();
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+
+    if (!searchTerm || searchTerm.length < 2) {
+      return res.json({ results: [] });
+    }
+
+    // Search clinics and doctors in parallel
+    const [{ data: clinics }, { data: doctors }] = await Promise.all([
+      supabase
+        .from('tenants')
+        .select('id, name, subdomain, address, city, lat, lng, phone, open_time, close_time, specialization, rating, total_reviews')
+        .eq('is_active', true)
+        .or(`name.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%,specialization.ilike.%${searchTerm}%`)
+        .limit(limit),
+      supabase
+        .from('users')
+        .select('tenant_id, name')
+        .eq('role', 'doctor')
+        .eq('is_active', true)
+        .ilike('name', `%${searchTerm}%`)
+        .limit(20)
+    ]);
+
+    // If search by doctor name, also include their clinics
+    let matchedClinicIds = new Set((clinics || []).map(c => c.id));
+    if ((doctors || []).length > 0) {
+      const doctorTenantIds = [...new Set((doctors || []).map(d => d.tenant_id))];
+      const { data: clinicsByDoctor } = await supabase
+        .from('tenants')
+        .select('id, name, subdomain, address, city, lat, lng, phone, open_time, close_time, specialization, rating, total_reviews')
+        .in('id', doctorTenantIds)
+        .eq('is_active', true)
+        .limit(limit);
+
+      (clinicsByDoctor || []).forEach(c => matchedClinicIds.add(c.id));
+    }
+
+    const matchedClinicArray = Array.from(matchedClinicIds)
+      .slice(0, limit)
+      .map(id => (clinics || []).find(c => c.id === id) || { id })
+      .filter(c => c.name); // filter out partial matches
+
+    if (matchedClinicArray.length === 0) {
+      return res.json({ results: [] });
+    }
+
+    const clinicIds = matchedClinicArray.map(c => c.id);
+
+    // Fetch queue and doctor counts
+    const [{ data: queueEntries }, { data: docList }] = await Promise.all([
+      supabase
+        .from('queue_entries')
+        .select('tenant_id')
+        .in('tenant_id', clinicIds)
+        .eq('status', 'waiting')
+        .gte('registered_at', start),
+      supabase
+        .from('users')
+        .select('tenant_id')
+        .in('tenant_id', clinicIds)
+        .eq('role', 'doctor')
+        .eq('is_active', true)
+    ]);
+
+    const waitingByClinic = new Map();
+    (queueEntries || []).forEach((entry) => {
+      waitingByClinic.set(entry.tenant_id, (waitingByClinic.get(entry.tenant_id) || 0) + 1);
+    });
+
+    const doctorsByClinic = new Map();
+    (docList || []).forEach((doctor) => {
+      doctorsByClinic.set(doctor.tenant_id, (doctorsByClinic.get(doctor.tenant_id) || 0) + 1);
+    });
+
+    const enriched = matchedClinicArray.map((clinic) => ({
+      ...clinic,
+      totalWaiting: waitingByClinic.get(clinic.id) || 0,
+      doctorCount: doctorsByClinic.get(clinic.id) || 0
+    }));
+
+    res.json({ results: enriched });
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Failed to search clinics' });
+  }
+});
 // Public — get single clinic detail with doctors and queue counts
 router.get('/clinics/:subdomain', async (req, res) => {
   try {

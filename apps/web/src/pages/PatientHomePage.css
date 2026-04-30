@@ -645,3 +645,126 @@
   color: var(--qf-text-variant);
   font-family: 'Inter', sans-serif;
 }
+
+/* ─── Performance Optimizations ─── */
+
+/* Infinite Scroll Trigger */
+.ph-infinite-scroll-trigger {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+  margin-top: 1rem;
+}
+
+.ph-loading-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Inter', sans-serif;
+  color: var(--qf-primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.ph-loading-more .spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ph-load-more-hint {
+  color: var(--qf-text-variant);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+}
+
+.ph-pagination-info {
+  text-align: center;
+  color: var(--qf-text-variant);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--qf-surface-high);
+}
+
+/* Clinic Card Animations */
+.ph-clinic-card {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Optimize map cluster styling */
+.leaflet-cluster {
+  background-clip: padding-box;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.leaflet-cluster-large {
+  background: #e74c3c;
+}
+
+.leaflet-cluster-medium {
+  background: #f39c12;
+}
+
+.leaflet-cluster-small {
+  background: #27ae60;
+}
+
+/* Responsive optimization */
+@media (max-width: 768px) {
+  .ph-map-card {
+    position: static;
+    height: 300px;
+    margin-bottom: 2rem;
+  }
+
+  .ph-map-wrap {
+    height: 300px !important;
+  }
+
+  .ph-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ph-clinic-card {
+    font-size: 0.95rem;
+  }
+}
+
+/* Smooth fade-in for loaded cards */
+.ph-clinic-card.is-loaded {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

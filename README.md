@@ -2,15 +2,6 @@
 
 Multi-tenant clinic queue and appointment platform with real-time updates, AI-assisted triage/chat, role-based dashboards, and push notifications.
 
-## What This Project Includes
-
-- Staff workflows for reception, doctors, and clinic admins
-- Patient workflows for clinic discovery, booking, queue tracking, family profiles, and health records
-- Real-time queue events over Socket.io
-- AI integrations using Groq (symptom triage + clinic assistant chat)
-- Push notifications using Firebase Cloud Messaging (web)
-- Background reminders and notification queue using Bull + Redis
-- Supabase PostgreSQL schema for tenants, users, queue, appointments, reviews, waitlist, and more
 
 ## Tech Stack
 
@@ -93,7 +84,16 @@ qflow/
 ### Patient
 
 - Landing + search + clinic detail
-- Patient auth and dashboard
+- Patien## What This Project Includes
+
+- Staff workflows for reception, doctors, and clinic admins
+- Patient workflows for clinic discovery, booking, queue tracking, family profiles, and health records
+- Real-time queue events over Socket.io
+- AI integrations using Groq (symptom triage + clinic assistant chat)
+- Push notifications using Firebase Cloud Messaging (web)
+- Background reminders and notification queue using Bull + Redis
+- Supabase PostgreSQL schema for tenants, users, queue, appointments, reviews, waitlist, and more
+t auth and dashboard
 - Book appointment by clinic subdomain
 - Track token/appointment live
 - Join queue remotely (self-registration)

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import VoiceInput from '../components/VoiceInput'
 import { useToast } from '../components/Toast'
 import { useAuthStore } from '../store/authStore'
-import { isEmail, isPhone, normalizeEmail, normalizePhone } from '../utils/validation'
+import { isEmail, isNonEmptyString, isPhone, normalizeEmail, normalizePhone } from '../utils/validation'
 import socket, { connectPublicClinic } from '../socket'
 import './BookAppointmentPage.css'
 
@@ -15,10 +15,22 @@ const getDoctorId = (doctor) => {
   return match ? String(match).trim() : ''
 }
 
+const hasValidDoctorId = (value) => {
+  const clean = String(value ?? '').trim()
+  return Boolean(clean) && clean !== 'undefined' && clean !== 'null'
+}
+
+const normalizeText = (value) => String(value ?? '').trim().toLowerCase()
+const normalizeDoctorName = (value) => normalizeText(value).replace(/\./g, '').replace(/\s+/g, ' ')
+
 const matchesDoctorParam = (doctor, rawDoctorParam) => {
   if (!doctor || !rawDoctorParam) return false
   const candidates = [doctor.id, doctor.doctorId, doctor.doctor_id, doctor.userId, doctor.user_id]
-  return candidates.some(v => String(v ?? '').trim() === String(rawDoctorParam).trim())
+  const cleanParam = normalizeText(rawDoctorParam)
+  if (candidates.some(v => normalizeText(v) === cleanParam)) {
+    return true
+  }
+  return normalizeDoctorName(doctor.name) === normalizeDoctorName(rawDoctorParam)
 }
 
 const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
@@ -65,7 +77,6 @@ export default function BookAppointmentPage() {
   const [oldAppointment, setOldAppointment] = useState(null)
   const [rescheduleError, setRescheduleError] = useState('')
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
-  const selectedDoctorIdIsValid = String(selected.doctorId ?? '').trim().length > 0
   const safeSubdomain = subdomain && subdomain !== 'undefined' ? subdomain : ''
   const resolvedSubdomain = safeSubdomain || oldAppointment?.tenants?.subdomain || ''
 
@@ -85,6 +96,12 @@ export default function BookAppointmentPage() {
     queryFn: () => fetch(`${import.meta.env.VITE_API_URL}/patient/clinics/${resolvedSubdomain}`).then(r => r.json()),
     enabled: !!resolvedSubdomain
   })
+
+  const selectedDoctorId = String(selected.doctorId ?? '').trim()
+  const fallbackDoctor = clinic?.doctors?.find(d => normalizeDoctorName(d.name) === normalizeDoctorName(selected.doctorName))
+  const fallbackDoctorId = getDoctorId(fallbackDoctor)
+  const resolvedDoctorId = hasValidDoctorId(selectedDoctorId) ? selectedDoctorId : fallbackDoctorId
+  const selectedDoctorIdIsValid = hasValidDoctorId(resolvedDoctorId)
 
   // Load old appointment if rescheduling
   const { data: oldApptData } = useQuery({
@@ -127,14 +144,51 @@ export default function BookAppointmentPage() {
   }, [oldApptData, oldAppointment])
 
   useEffect(() => {
-    if (clinic?.doctors && preselectedDoctor && !selected.doctorName) {
-      const doc = clinic.doctors.find(d => matchesDoctorParam(d, preselectedDoctor))
-      const doctorId = getDoctorId(doc)
-      if (doc && doctorId) {
-        setSelected(prev => ({ ...prev, doctorId, doctorName: doc.name, fee: doc.consultationFee || 300 }))
-      }
+    if (!clinic?.doctors?.length) return
+    if (selectedDoctorIdIsValid) return
+
+    const docFromQuery = preselectedDoctor
+      ? clinic.doctors.find(d => matchesDoctorParam(d, preselectedDoctor))
+      : null
+
+    const docFromName = selected.doctorName
+      ? clinic.doctors.find(d => normalizeDoctorName(d.name) === normalizeDoctorName(selected.doctorName))
+      : null
+
+    const matchedDoctor = docFromQuery || docFromName
+    const doctorId = getDoctorId(matchedDoctor)
+
+    if (matchedDoctor && hasValidDoctorId(doctorId)) {
+      setSelected(prev => ({
+        ...prev,
+        doctorId,
+        doctorName: matchedDoctor.name,
+        fee: prev.fee || matchedDoctor.consultationFee || 300
+      }))
     }
-  }, [clinic, preselectedDoctor, selected.doctorName])
+  }, [clinic, preselectedDoctor, selected.doctorName, selectedDoctorIdIsValid])
+
+  useEffect(() => {
+    if (!clinic?.doctors || selectedDoctorIdIsValid || !selected.doctorName) return
+    const doc = clinic.doctors.find(d => normalizeText(d.name) === normalizeText(selected.doctorName))
+    const doctorId = getDoctorId(doc)
+    if (doc && hasValidDoctorId(doctorId)) {
+      setSelected(prev => ({
+        ...prev,
+        doctorId,
+        doctorName: doc.name,
+        fee: prev.fee || doc.consultationFee || 300
+      }))
+    }
+  }, [clinic, selected.doctorName, selectedDoctorIdIsValid])
+
+  useEffect(() => {
+    if (step >= 2 && !selectedDoctorIdIsValid) {
+      setStep(1)
+      setSelected(prev => ({ ...prev, slot: '' }))
+      toast.error('Please select a doctor before choosing a time slot.')
+    }
+  }, [step, selectedDoctorIdIsValid, toast])
 
   useEffect(() => {
     if (user && user.role === 'patient') {
@@ -163,10 +217,10 @@ export default function BookAppointmentPage() {
       }
 
       if (selectedDoctorIdIsValid && selected.date) {
-        const matchesCurrentDoctor = !payload?.doctorId || payload.doctorId === selected.doctorId
+        const matchesCurrentDoctor = !payload?.doctorId || payload.doctorId === resolvedDoctorId
         const matchesCurrentDate = !payload?.date || payload.date === selected.date
         if (matchesCurrentDoctor && matchesCurrentDate) {
-          queryClient.invalidateQueries({ queryKey: ['slots', selected.doctorId, selected.date] })
+          queryClient.invalidateQueries({ queryKey: ['slots', resolvedDoctorId, selected.date] })
         }
       }
     }
@@ -176,15 +230,26 @@ export default function BookAppointmentPage() {
     return () => {
       socket.off('clinic:updated', handleClinicUpdate)
     }
-  }, [resolvedSubdomain, queryClient, selected.doctorId, selected.date, selectedDoctorIdIsValid])
+  }, [resolvedSubdomain, queryClient, selected.doctorId, selected.date, selectedDoctorIdIsValid, resolvedDoctorId])
 
   const { data: slotsData, isLoading: loadingSlots, dataUpdatedAt: slotsUpdatedAt } = useQuery({
-    queryKey: ['slots', selected.doctorId, selected.date],
-    queryFn: () =>
-      fetch(`${import.meta.env.VITE_API_URL}/appointments/slots?doctorId=${encodeURIComponent(selected.doctorId)}&date=${selected.date}`)
-        .then(r => r.json()),
+    queryKey: ['slots', selectedDoctorIdIsValid ? resolvedDoctorId : 'invalid-doctor', selected.date],
+    queryFn: async () => {
+      if (!hasValidDoctorId(resolvedDoctorId)) {
+        return { slots: [], error: 'Please select a doctor first.' }
+      }
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/appointments/slots?doctorId=${encodeURIComponent(resolvedDoctorId)}&date=${selected.date}`)
+      return response.json()
+    },
     enabled: selectedDoctorIdIsValid && !!selected.date && step >= 2
   })
+
+  useEffect(() => {
+    if (step !== 2) return
+    if (slotsData?.error !== 'doctorId is required') return
+    setStep(1)
+    toast.error('Doctor selection expired. Please choose doctor again.')
+  }, [step, slotsData?.error, toast])
 
   useEffect(() => {
     if (slotsUpdatedAt) {
@@ -311,10 +376,10 @@ export default function BookAppointmentPage() {
                 <button
                   key={doctorId || doc.id || doc.name}
                   type="button"
-                  disabled={!doctorId}
+                  disabled={!hasValidDoctorId(doctorId)}
                   className={`ba-doctor-card ${isActive ? 'is-active' : ''}`}
                   onClick={() => {
-                    if (!doctorId) return
+                    if (!hasValidDoctorId(doctorId)) return
                     setSelected(prev => ({ ...prev, doctorId, doctorName: doc.name, fee: doc.consultationFee || 300 }))
                   }}
                 >
@@ -349,7 +414,7 @@ export default function BookAppointmentPage() {
             key={day.value}
             type="button"
             className={`ba-chip ${selected.date === day.value ? 'is-active' : ''}`}
-            onClick={() => setSelected({ ...selected, date: day.value })}
+            onClick={() => setSelected(prev => ({ ...prev, date: day.value }))}
           >
             {day.label}
           </button>
@@ -368,7 +433,7 @@ export default function BookAppointmentPage() {
             type="button"
             disabled={!slot.available}
             className={`ba-slot ${selected.slot === slot.time ? 'is-active' : ''} ${!slot.available ? 'is-disabled' : ''}`}
-            onClick={() => slot.available && setSelected({ ...selected, slot: slot.time, fee: slot.consultationFee })}
+            onClick={() => slot.available && setSelected(prev => ({ ...prev, slot: slot.time, fee: slot.consultationFee }))}
           >
             {slot.time}
           </button>
@@ -603,7 +668,7 @@ export default function BookAppointmentPage() {
                 // New booking: full details
                 bookMutation.mutate({
                   tenantId: clinic?.id,
-                  doctorId: selected.doctorId,
+                  doctorId: resolvedDoctorId,
                   date: selected.date,
                   slotTime: selected.slot,
                   patientName: form.patientName.trim(),
