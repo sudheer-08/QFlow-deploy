@@ -64,7 +64,7 @@ router.get('/slots', async (req, res) => {
       }
     }
 
-    assert(isNonEmptyString(resolvedDoctorId, 1), 'doctorId is required');
+    assert(isNonEmptyString(resolvedDoctorId), 'doctorId is required');
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
 
     let { data: settings } = await supabase
@@ -161,7 +161,7 @@ router.post('/book', async (req, res) => {
     const cleanEmail = email ? normalizeEmail(email) : null;
 
     assert(isUuid(tenantId), 'tenantId must be a valid UUID');
-    assert(isNonEmptyString(doctorId, 1), 'doctorId is required');
+    assert(isNonEmptyString(doctorId), 'doctorId is required');
     if (loggedInPatientId) {
       assert(isUuid(loggedInPatientId), 'patientId must be a valid UUID');
     }
