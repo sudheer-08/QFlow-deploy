@@ -36,22 +36,53 @@ const generateSlots = (start, end, durationMins) => {
 // ─── GET /api/appointments/slots ──────────────────────
 router.get('/slots', async (req, res) => {
   try {
-    const { doctorId, date } = req.query;
-    assert(isNonEmptyString(doctorId, 1), 'doctorId is required');
+    const rawDoctorId = req.query?.doctorId ?? req.query?.doctorid ?? req.query?.doctor_id ?? '';
+    const rawDoctorName = req.query?.doctorName ?? req.query?.doctorname ?? req.query?.doctor_name ?? '';
+    const rawSubdomain = req.query?.subdomain ?? req.query?.clinicSubdomain ?? req.query?.clinic_subdomain ?? '';
+    const rawDate = req.query?.date;
+
+    const doctorName = Array.isArray(rawDoctorName) ? String(rawDoctorName[0] || '').trim() : String(rawDoctorName || '').trim();
+    const subdomain = Array.isArray(rawSubdomain) ? String(rawSubdomain[0] || '').trim() : String(rawSubdomain || '').trim();
+    const date = Array.isArray(rawDate) ? String(rawDate[0] || '').trim() : String(rawDate || '').trim();
+    let resolvedDoctorId = Array.isArray(rawDoctorId)
+      ? String(rawDoctorId[0] || '').trim()
+      : String(rawDoctorId || '').trim();
+
+    if (!isNonEmptyString(resolvedDoctorId, 1) && isNonEmptyString(doctorName, 100) && isNonEmptyString(subdomain, 100)) {
+      const { data: doctorByName } = await supabase
+        .from('users')
+        .select('id, tenants!inner(subdomain)')
+        .eq('role', 'doctor')
+        .eq('is_active', true)
+        .eq('tenants.subdomain', subdomain)
+        .ilike('name', `%${doctorName}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (doctorByName?.id) {
+        resolvedDoctorId = doctorByName.id;
+      }
+    }
+
+    assert(isNonEmptyString(resolvedDoctorId, 1), 'doctorId is required');
     assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
 
     let { data: settings } = await supabase
       .from('doctor_slot_settings')
       .select('*')
-      .eq('doctor_id', doctorId)
+      .eq('doctor_id', resolvedDoctorId)
       .single();
 
     if (!settings) {
       const { data: doctor } = await supabase
         .from('users')
         .select('tenant_id, tenants(open_time, close_time)')
-        .eq('id', doctorId)
+        .eq('id', resolvedDoctorId)
         .single();
+
+      if (!doctor?.tenant_id) {
+        return res.status(404).json({ error: 'Selected doctor not found' });
+      }
 
       const openTime = doctor?.tenants?.open_time || '09:00';
       const closeTime = doctor?.tenants?.close_time || '20:00';
@@ -61,7 +92,7 @@ router.get('/slots', async (req, res) => {
         .insert({
           id: uuidv4(),
           tenant_id: doctor?.tenant_id,
-          doctor_id: doctorId,
+          doctor_id: resolvedDoctorId,
           slot_duration_mins: 20,
           morning_start: openTime,
           morning_end: '13:00',
@@ -92,7 +123,7 @@ router.get('/slots', async (req, res) => {
     const { data: booked } = await supabase
       .from('appointments')
       .select('slot_time')
-      .eq('doctor_id', doctorId)
+      .eq('doctor_id', resolvedDoctorId)
       .eq('appointment_date', date)
       .in('status', ['confirmed', 'pending']);
 

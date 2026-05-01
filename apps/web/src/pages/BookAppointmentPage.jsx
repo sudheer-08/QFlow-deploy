@@ -21,7 +21,11 @@ const hasValidDoctorId = (value) => {
 }
 
 const normalizeText = (value) => String(value ?? '').trim().toLowerCase()
-const normalizeDoctorName = (value) => normalizeText(value).replace(/\./g, '').replace(/\s+/g, ' ')
+const normalizeDoctorName = (value) => normalizeText(value)
+  .replace(/\./g, '')
+  .replace(/^dr\s+/i, '')
+  .replace(/^doctor\s+/i, '')
+  .replace(/\s+/g, ' ')
 
 const matchesDoctorParam = (doctor, rawDoctorParam) => {
   if (!doctor || !rawDoctorParam) return false
@@ -30,7 +34,9 @@ const matchesDoctorParam = (doctor, rawDoctorParam) => {
   if (candidates.some(v => normalizeText(v) === cleanParam)) {
     return true
   }
-  return normalizeDoctorName(doctor.name) === normalizeDoctorName(rawDoctorParam)
+  const normalizedDoc = normalizeDoctorName(doctor.name)
+  const normalizedParam = normalizeDoctorName(rawDoctorParam)
+  return normalizedDoc === normalizedParam || normalizedDoc.includes(normalizedParam) || normalizedParam.includes(normalizedDoc)
 }
 
 const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
@@ -145,7 +151,7 @@ export default function BookAppointmentPage() {
 
   useEffect(() => {
     if (!clinic?.doctors?.length) return
-    if (selectedDoctorIdIsValid) return
+    if (hasValidDoctorId(selected.doctorId)) return
 
     const docFromQuery = preselectedDoctor
       ? clinic.doctors.find(d => matchesDoctorParam(d, preselectedDoctor))
@@ -166,7 +172,7 @@ export default function BookAppointmentPage() {
         fee: prev.fee || matchedDoctor.consultationFee || 300
       }))
     }
-  }, [clinic, preselectedDoctor, selected.doctorName, selectedDoctorIdIsValid])
+  }, [clinic, preselectedDoctor, selected.doctorId, selected.doctorName])
 
   useEffect(() => {
     if (!clinic?.doctors || selectedDoctorIdIsValid || !selected.doctorName) return
@@ -235,21 +241,17 @@ export default function BookAppointmentPage() {
   const { data: slotsData, isLoading: loadingSlots, dataUpdatedAt: slotsUpdatedAt } = useQuery({
     queryKey: ['slots', selectedDoctorIdIsValid ? resolvedDoctorId : 'invalid-doctor', selected.date],
     queryFn: async () => {
-      if (!hasValidDoctorId(resolvedDoctorId)) {
-        return { slots: [], error: 'Please select a doctor first.' }
-      }
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/appointments/slots?doctorId=${encodeURIComponent(resolvedDoctorId)}&date=${selected.date}`)
+      const params = new URLSearchParams({
+        date: selected.date,
+        ...(hasValidDoctorId(resolvedDoctorId) ? { doctorId: resolvedDoctorId } : {}),
+        ...(selected.doctorName ? { doctorName: selected.doctorName } : {}),
+        ...(resolvedSubdomain ? { subdomain: resolvedSubdomain } : {})
+      })
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/appointments/slots?${params.toString()}`)
       return response.json()
     },
-    enabled: selectedDoctorIdIsValid && !!selected.date && step >= 2
+    enabled: !!selected.date && step >= 2 && (selectedDoctorIdIsValid || !!selected.doctorName)
   })
-
-  useEffect(() => {
-    if (step !== 2) return
-    if (slotsData?.error !== 'doctorId is required') return
-    setStep(1)
-    toast.error('Doctor selection expired. Please choose doctor again.')
-  }, [step, slotsData?.error, toast])
 
   useEffect(() => {
     if (slotsUpdatedAt) {
@@ -611,7 +613,13 @@ export default function BookAppointmentPage() {
         {step === 1 && (
           <button
             className={`ba-cta ${selectedDoctorIdIsValid ? '' : 'is-disabled'}`}
-            onClick={() => selectedDoctorIdIsValid && setStep(isReschedule ? 2 : 2)}
+              onClick={() => {
+                if (!selectedDoctorIdIsValid) return
+                if (!hasValidDoctorId(selected.doctorId) && hasValidDoctorId(resolvedDoctorId)) {
+                  setSelected(prev => ({ ...prev, doctorId: resolvedDoctorId }))
+                }
+                setStep(2)
+              }}
             disabled={!selectedDoctorIdIsValid}
           >
             Next • Pick Time Slot
