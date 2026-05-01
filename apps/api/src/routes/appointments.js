@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticate } = require('../middleware/auth');
 const { classifySymptoms } = require('../services/ai');
 const { scheduleReminders, cancelReminders, queueNotificationSend } = require('../jobs/reminders');
-const { getLocalDateString } = require('../utils/date');
+const { getLocalDateString, getNowInTimezoneDate } = require('../utils/date');
 const {
   assert,
   isEmail,
@@ -31,6 +31,12 @@ const generateSlots = (start, end, durationMins) => {
     current += durationMins;
   }
   return slots;
+};
+
+const slotToMinutes = (time) => {
+  if (typeof time !== 'string' || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) return null;
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
 };
 
 // ─── GET /api/appointments/slots ──────────────────────
@@ -108,6 +114,9 @@ router.get('/slots', async (req, res) => {
     }
 
     const duration = settings?.slot_duration_mins || 20;
+    const today = getLocalDateString();
+    const currentTime = getNowInTimezoneDate();
+    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
     const morningSlots = generateSlots(
       settings?.morning_start || '09:00',
       settings?.morning_end || '13:00',
@@ -129,7 +138,14 @@ router.get('/slots', async (req, res) => {
 
     const bookedTimes = new Set(booked?.map(b => b.slot_time?.slice(0, 5)) || []);
 
-    const slots = allSlots.map(time => ({
+    const isSameDay = date === today;
+    const slots = allSlots
+      .filter(time => {
+        if (!isSameDay) return true;
+        const slotMinutes = slotToMinutes(time);
+        return slotMinutes !== null && slotMinutes >= currentMinutes;
+      })
+      .map(time => ({
       time,
       available: !bookedTimes.has(time),
       consultationFee: settings?.consultation_fee || 300
