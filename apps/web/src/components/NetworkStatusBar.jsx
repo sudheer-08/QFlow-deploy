@@ -31,9 +31,23 @@ export default function NetworkStatusBar() {
       textAlign: 'center',
       fontWeight: 700,
       fontSize: 13,
-      letterSpacing: 0.2
+      letterSpacing: 0.2,
+      animation: 'slideDownIn 0.4s ease-out',
+      boxShadow: '0 4px 12px rgba(185, 28, 28, 0.3)'
     }}>
-      You are offline. Changes may not sync until your connection is restored.
+      <style>{`
+        @keyframes slideDownIn {
+          from {
+            opacity: 0;
+            transform: translateY(-100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+      📡 You are offline. Changes may not sync until your connection is restored.
     </div>
   )
 }

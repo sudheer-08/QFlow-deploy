@@ -61,8 +61,9 @@ export function ToastProvider({ children }) {
             alignItems: 'center',
             gap: 10,
             boxShadow: '0 8px 20px rgba(15, 23, 42, 0.15)',
-            animation: 'slideDown 0.3s ease',
-            fontFamily: 'Manrope, sans-serif'
+            animation: 'slideDownIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            fontFamily: 'Manrope, sans-serif',
+            transition: 'all 0.3s ease'
           }}>
             <span style={{
               width: 22,
@@ -74,7 +75,8 @@ export function ToastProvider({ children }) {
               color: colors[t.type].text,
               fontSize: 11,
               fontWeight: 800,
-              flexShrink: 0
+              flexShrink: 0,
+              animation: 'pulse-soft 0.6s ease-out'
             }}>{icons[t.type]}</span>
             <p style={{ fontSize: 13, fontWeight: 700, color: colors[t.type].text, margin: 0 }}>{t.message}</p>
           </div>
@@ -85,6 +87,16 @@ export function ToastProvider({ children }) {
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-16px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideDownIn {
+          0% { 
+            opacity: 0; 
+            transform: translateY(-20px);
+          }
+          100% { 
+            opacity: 1; 
+            transform: translateY(0);
+          }
         }
       `}</style>
     </ToastContext.Provider>

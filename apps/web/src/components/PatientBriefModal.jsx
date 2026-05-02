@@ -42,27 +42,27 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
   const priority = brief?.queueEntry?.priority || brief?.intake?.priority || 'routine';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
 
         {/* Header */}
-        <div className={`p-5 rounded-t-3xl border-b ${
+        <div className={`p-5 rounded-t-3xl border-b transition-all duration-300 ${
           priority === 'critical' ? 'bg-red-50' :
           priority === 'moderate' ? 'bg-orange-50' : 'bg-blue-50'
         }`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-3 animate-fade-in-up">
+              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm hover:shadow-md transition-shadow duration-300">
                 <User className="w-6 h-6 text-blue-600" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-800">{patientName}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PRIORITY_STYLES[priority]}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium transition-all duration-300 ${PRIORITY_STYLES[priority]}`}>
                     {PRIORITY_LABELS[priority]}
                   </span>
                   {brief?.totalVisits > 0 && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 animate-fade-in">
                       {brief.totalVisits} previous visit{brief.totalVisits > 1 ? 's' : ''}
                     </span>
                   )}
@@ -70,14 +70,14 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
               </div>
             </div>
             <button onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50">
+              className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 hover:shadow-md transition-all duration-300 hover:scale-110">
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center">
+          <div className="p-8 text-center animate-fade-in">
             <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-gray-500 text-sm">Loading patient brief...</p>
           </div>
@@ -86,7 +86,7 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
 
             {/* Critical Alert */}
             {priority === 'critical' && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 animate-fade-in-up">
                 <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-red-700 font-semibold text-sm">Urgent Attention Needed</p>
@@ -99,12 +99,12 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
 
             {/* Today's Complaint */}
             {(brief?.intake || brief?.queueEntry) && (
-              <div className="bg-blue-50 rounded-2xl p-4">
+              <div className="bg-blue-50 rounded-2xl p-4 animate-fade-in-up transition-all duration-300 hover:shadow-md">
                 <div className="flex items-center gap-2 mb-3">
                   <FileText className="w-4 h-4 text-blue-600" />
                   <h3 className="font-semibold text-gray-800 text-sm">Today's Complaint</h3>
                   {brief?.intake && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full animate-scale-in">
                       Patient filled form ✓
                     </span>
                   )}
@@ -112,8 +112,10 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
 
                 {brief?.intake?.symptom_tags?.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {brief.intake.symptom_tags.map(tag => (
-                      <span key={tag} className="bg-white text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-medium">
+                    {brief.intake.symptom_tags.map((tag, idx) => (
+                      <span key={tag} className="bg-white text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-medium animate-scale-in transition-all duration-300 hover:shadow-sm" style={{
+                        animationDelay: `${idx * 50}ms`
+                      }}>
                         {tag}
                       </span>
                     ))}
@@ -127,7 +129,7 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
                 )}
 
                 {brief?.intake?.ai_summary && (
-                  <div className="mt-2 bg-white rounded-xl p-3 border border-blue-100">
+                  <div className="mt-2 bg-white rounded-xl p-3 border border-blue-100 animate-fade-in-up transition-all duration-300">
                     <p className="text-xs text-blue-600 font-medium mb-1">🤖 AI Summary</p>
                     <p className="text-xs text-gray-600">{brief.intake.ai_summary}</p>
                   </div>
@@ -137,7 +139,7 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
 
             {/* Current Medicines */}
             {brief?.intake?.current_medicines && (
-              <div className="bg-orange-50 rounded-2xl p-4">
+              <div className="bg-orange-50 rounded-2xl p-4 animate-fade-in-up transition-all duration-300 hover:shadow-md">
                 <div className="flex items-center gap-2 mb-2">
                   <Pill className="w-4 h-4 text-orange-600" />
                   <h3 className="font-semibold text-gray-800 text-sm">Current Medicines</h3>
@@ -148,10 +150,10 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
 
             {/* Past Visits */}
             {brief?.pastVisits?.length > 0 && (
-              <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="bg-gray-50 rounded-2xl p-4 animate-fade-in-up transition-all duration-300 hover:shadow-md">
                 <button
                   onClick={() => setShowHistory(!showHistory)}
-                  className="w-full flex items-center justify-between">
+                  className="w-full flex items-center justify-between transition-all duration-300 hover:text-blue-600">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-600" />
                     <h3 className="font-semibold text-gray-800 text-sm">
@@ -159,15 +161,17 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
                     </h3>
                   </div>
                   {showHistory
-                    ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                    : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    ? <ChevronUp className="w-4 h-4 text-gray-400 transition-transform duration-300" />
+                    : <ChevronDown className="w-4 h-4 text-gray-400 transition-transform duration-300" />}
                 </button>
 
                 {showHistory && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 space-y-3 animate-fade-in-up">
                     {brief.pastVisits.map((visit, i) => (
                       <div key={visit.id}
-                        className="bg-white rounded-xl p-3 border border-gray-200">
+                        className="bg-white rounded-xl p-3 border border-gray-200 animate-fade-in-up transition-all duration-300 hover:shadow-md hover:border-blue-200" style={{
+                          animationDelay: `${i * 50}ms`
+                        }}>
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-xs text-gray-400">
                             {new Date(visit.created_at).toLocaleDateString('en-IN', {

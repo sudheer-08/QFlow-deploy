@@ -84,16 +84,7 @@ qflow/
 ### Patient
 
 - Landing + search + clinic detail
-- Patien## What This Project Includes
-
-- Staff workflows for reception, doctors, and clinic admins
-- Patient workflows for clinic discovery, booking, queue tracking, family profiles, and health records
-- Real-time queue events over Socket.io
-- AI integrations using Groq (symptom triage + clinic assistant chat)
-- Push notifications using Firebase Cloud Messaging (web)
-- Background reminders and notification queue using Bull + Redis
-- Supabase PostgreSQL schema for tenants, users, queue, appointments, reviews, waitlist, and more
-t auth and dashboard
+- Patient auth and dashboard
 - Book appointment by clinic subdomain
 - Track token/appointment live
 - Join queue remotely (self-registration)
@@ -107,6 +98,21 @@ Socket rooms are used for separation by context:
 - tenant:<tenantId> for authenticated clinic staff
 - tracker:<trackerToken> for patient tracking pages
 - clinic:<subdomain> for public clinic/booking pages
+
+### UI/UX Animations
+
+The frontend features smooth, modern animations throughout:
+
+- **Page transitions**: Fade-in and slide animations for modals and cards
+- **Button interactions**: Hover effects with scale and lift animations
+- **Form elements**: Smooth focus transitions with glow effects
+- **Navigation**: Bouncing bottom nav tabs with smooth color transitions
+- **Toast notifications**: Slide-down entrance with icon pulse animations
+- **Expandable sections**: Smooth expand/collapse with staggered content animations
+- **Loading states**: Shimmer animations for skeleton loaders
+- **Live indicators**: Pulsing dots for real-time status badges
+
+All animations are GPU-accelerated with cubic-bezier easing for smooth 60fps performance.
 
 ## Backend Architecture Notes
 
