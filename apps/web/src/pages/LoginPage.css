@@ -123,21 +123,23 @@
   font-weight: 800;
   padding: 12px;
   cursor: pointer;
-  transition: transform var(--ui-duration-fast) var(--ui-ease-standard), box-shadow var(--ui-duration-medium) var(--ui-ease-standard), filter var(--ui-duration-fast) var(--ui-ease-standard);
+  transition: transform 220ms cubic-bezier(0.4,0,0.2,1), box-shadow 300ms cubic-bezier(0.4,0,0.2,1), filter 220ms cubic-bezier(0.4,0,0.2,1), opacity 220ms ease;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.08);
+  opacity: 1;
 }
 
 .sl-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--ui-shadow-1);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 14px 34px rgba(15,23,42,0.12);
 }
 
 .sl-submit:disabled {
-  background: #d3def8;
-  color: #2f4577;
-  opacity: 1;
+  background: linear-gradient(135deg, #dfe8ff, #eef4ff);
+  color: #27406b;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+  opacity: 0.7;
 }
 
 .sl-footer-links {
