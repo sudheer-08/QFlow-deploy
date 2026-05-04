@@ -7,20 +7,43 @@ import PatientBriefModal from '../components/PatientBriefModal'
 import { useToast } from '../components/Toast'
 import {
   LogOut, Stethoscope, CheckCircle2, SkipForward,
-  FileText, Eye, CalendarPlus, User
+  FileText, Eye, CalendarPlus, User, Calendar, Activity,
+  Clock, Users, Loader
 } from 'lucide-react'
+import './DoctorPage.css'
+
+const today = new Date().toISOString().split('T')[0]
+const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+
+const priorityCfg = {
+  critical: { label: '🔴 Critical', cls: 'is-critical', mini: 'dr-mini-critical' },
+  moderate: { label: '🟡 Moderate', cls: 'is-moderate', mini: 'dr-mini-moderate' },
+  routine:  { label: '🟢 Routine',  cls: 'is-routine',  mini: 'dr-mini-routine' }
+}
+
+function formatTime12(time24) {
+  if (!time24) return ''
+  const [h, m] = time24.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return { time: `${h12}:${m.toString().padStart(2, '0')}`, ampm }
+}
 
 export default function DoctorPage() {
   const { user, logout } = useAuthStore()
   const toast = useToast()
   const queryClient = useQueryClient()
+
+  const [activeTab, setActiveTab] = useState('queue')
   const [currentPatient, setCurrentPatient] = useState(null)
   const [briefModal, setBriefModal] = useState(null)
   const [followUpModal, setFollowUpModal] = useState(null)
   const [followUpDate, setFollowUpDate] = useState('')
   const [followUpReason, setFollowUpReason] = useState('')
   const [followUpSaving, setFollowUpSaving] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(today)
 
+  // ─── Live Queue ───
   const { data: queue = [] } = useQuery({
     queryKey: ['doctor-queue'],
     queryFn: () => api.get(`/queue/doctor/${user.id}`).then(r => r.data),
@@ -28,6 +51,15 @@ export default function DoctorPage() {
   })
 
   const waiting = queue.filter(e => e.status === 'waiting')
+  const doneToday = queue.filter(e => e.status === 'done').length
+
+  // ─── Appointments by date ───
+  const { data: appointments = [], isLoading: apptLoading } = useQuery({
+    queryKey: ['clinic-appointments', selectedDate],
+    queryFn: () => api.get(`/appointments/clinic/by-date?date=${selectedDate}`).then(r => r.data),
+    enabled: activeTab === 'appointments',
+    refetchInterval: 60000
+  })
 
   const callMutation = useMutation({
     mutationFn: (entryId) => api.patch(`/queue/${entryId}/call`),
@@ -63,12 +95,6 @@ export default function DoctorPage() {
     }
   }, [])
 
-  const priorityConfig = {
-    critical: { label: '🔴 Critical', cls: 'priority-critical', badge: 'qf-badge-red' },
-    moderate: { label: '🟡 Moderate', cls: 'priority-moderate', badge: 'qf-badge-amber' },
-    routine:  { label: '🟢 Routine',  cls: 'priority-routine',  badge: 'qf-badge-green' }
-  }
-
   const handleViewBrief = (entry) => {
     setBriefModal({
       patientId: entry.patient_id || entry.users?.id,
@@ -86,7 +112,6 @@ export default function DoctorPage() {
     setFollowUpSaving(true)
     try {
       await completeMutation.mutateAsync(followUpModal)
-
       if (followUpDate) {
         await api.post('/follow-up', {
           patient_id: currentPatient?.patient_id,
@@ -98,7 +123,6 @@ export default function DoctorPage() {
       } else {
         toast.success('Consultation completed')
       }
-
       setFollowUpModal(null)
       setFollowUpDate('')
       setFollowUpReason('')
@@ -109,217 +133,263 @@ export default function DoctorPage() {
     }
   }
 
+  const pCfg = priorityCfg[currentPatient?.priority] || priorityCfg.routine
+
   return (
-    <div className="qf-staff-shell">
-      {/* Header */}
-      <header className="qf-staff-header">
-        <div className="qf-staff-brand">
-          <div className="qf-staff-logo">Q</div>
+    <div className="dr-shell">
+      {/* ─── Header ─── */}
+      <header className="dr-header">
+        <div className="dr-header-left">
+          <div className="dr-logo">Q</div>
           <div>
-            <div className="qf-staff-title">
+            <div className="dr-name">
               {user?.name?.startsWith('Dr') ? user.name : `Dr. ${user.name}`}
             </div>
-            <div className="qf-staff-subtitle">{waiting.length} patients waiting</div>
+            <div className="dr-clinic">{user?.clinicName || 'Clinic Dashboard'}</div>
           </div>
         </div>
-        <button onClick={logout} className="qf-btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <LogOut size={14} /> Sign out
-        </button>
+        <div className="dr-header-right">
+          <div className="dr-badge">
+            <div className="dr-badge-dot" />
+            {waiting.length} waiting
+          </div>
+          <button onClick={logout} className="dr-btn-logout">
+            <LogOut size={13} /> Sign out
+          </button>
+        </div>
       </header>
 
-      <div className="qf-staff-body">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="lg:grid-cols-2">
+      {/* ─── Tabs ─── */}
+      <nav className="dr-tabs">
+        <button
+          className={`dr-tab ${activeTab === 'queue' ? 'active' : ''}`}
+          onClick={() => setActiveTab('queue')}
+        >
+          <Users size={15} /> Live Queue
+          <span className="dr-tab-count">{waiting.length}</span>
+        </button>
+        <button
+          className={`dr-tab ${activeTab === 'appointments' ? 'active' : ''}`}
+          onClick={() => setActiveTab('appointments')}
+        >
+          <Calendar size={15} /> Appointments
+        </button>
+        <button
+          className={`dr-tab ${activeTab === 'stats' ? 'active' : ''}`}
+          onClick={() => setActiveTab('stats')}
+        >
+          <Activity size={15} /> Today's Stats
+        </button>
+      </nav>
 
-          {/* Current Patient Panel */}
-          <div className="qf-content-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-              <Stethoscope size={18} style={{ color: 'var(--ui-primary)' }} />
-              <h2 style={{ margin: 0 }}>Current Consultation</h2>
-            </div>
+      {/* ─── Queue Tab ─── */}
+      {activeTab === 'queue' && (
+        <div className="dr-body">
+          <div className="dr-two-col">
+            {/* Current Consultation */}
+            <div className="dr-current-panel">
+              <div className="dr-current-label">
+                <Stethoscope size={12} /> Current Consultation
+              </div>
 
-            {currentPatient ? (
-              <div style={{ display: 'grid', gap: 14 }}>
-                {/* Patient info */}
-                <div style={{
-                  borderRadius: 16, padding: 16,
-                  background: 'linear-gradient(135deg, #eef3ff, #e3edff)',
-                  border: '1px solid #c0d3ff'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{
-                      fontFamily: 'Sora, sans-serif', fontWeight: 800,
-                      fontSize: '1.5rem', color: 'var(--ui-primary)'
-                    }}>
-                      {currentPatient.token_number}
-                    </span>
-                    <span className={`qf-badge ${(priorityConfig[currentPatient.priority] || priorityConfig.routine).badge}`}>
-                      {(priorityConfig[currentPatient.priority] || priorityConfig.routine).label}
-                    </span>
+              {currentPatient ? (
+                <>
+                  <div className="dr-token">{currentPatient.token_number}</div>
+                  <div className="dr-patient-name">{currentPatient.users?.name}</div>
+                  <div className={`dr-priority-tag dr-priority-${currentPatient.priority || 'routine'}`}>
+                    {pCfg.label}
                   </div>
-                  <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--ui-text-1)', margin: 0 }}>
-                    {currentPatient.users?.name}
-                  </p>
-                  {currentPatient.registration_type === 'self_registered' && (
-                    <span className="qf-badge qf-badge-indigo" style={{ marginTop: 6 }}>📱 Self-registered (remote)</span>
+
+                  {currentPatient.ai_summary && (
+                    <div className="dr-ai-brief">
+                      <div className="dr-ai-brief-label">🤖 AI Pre-Brief</div>
+                      <div className="dr-ai-brief-text">{currentPatient.ai_summary}</div>
+                    </div>
                   )}
-                </div>
 
-                {/* AI Pre-brief */}
-                {currentPatient.ai_summary && (
-                  <div style={{
-                    borderRadius: 14, padding: 14,
-                    background: 'linear-gradient(165deg, #f0e5ff, #ede9fe)',
-                    border: '1px solid #d8cef7'
-                  }}>
-                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      🤖 AI Pre-Brief
-                    </p>
-                    <p style={{ margin: '6px 0 0', fontSize: '0.88rem', color: '#4c1d95' }}>
-                      {currentPatient.ai_summary}
-                    </p>
+                  <div className="dr-action-row">
+                    <button
+                      onClick={() => handleViewBrief(currentPatient)}
+                      className="dr-btn-ghost-white"
+                    >
+                      <Eye size={13} /> Full Brief
+                    </button>
+                    <button
+                      onClick={() => skipMutation.mutate(currentPatient.id)}
+                      disabled={skipMutation.isPending}
+                      className="dr-btn-ghost-white"
+                    >
+                      <SkipForward size={13} /> Skip
+                    </button>
+                    <button
+                      onClick={() => window.location.href = `/doctor/prescription?patient=${currentPatient.patient_id}&name=${encodeURIComponent(currentPatient.users?.name)}&entry=${currentPatient.id}`}
+                      className="dr-btn-ghost-white"
+                    >
+                      <FileText size={13} /> Prescription
+                    </button>
+                    <button
+                      onClick={() => setFollowUpModal(currentPatient.id)}
+                      disabled={completeMutation.isPending}
+                      className="dr-btn-white dr-btn-white-green"
+                    >
+                      <CheckCircle2 size={13} /> Done
+                    </button>
                   </div>
-                )}
-
-                {/* Symptoms */}
-                {currentPatient.symptoms && (
-                  <div style={{
-                    borderRadius: 14, padding: 14,
-                    background: 'linear-gradient(165deg, #f8faff, #f1f5f9)',
-                    border: '1px solid var(--ui-border)'
-                  }}>
-                    <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: 'var(--ui-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Patient Reported
-                    </p>
-                    <p style={{ margin: '6px 0 0', fontSize: '0.88rem', color: 'var(--ui-text-1)' }}>
-                      {currentPatient.symptoms}
-                    </p>
-                  </div>
-                )}
-
-                {/* View full brief */}
-                <button
-                  onClick={() => handleViewBrief(currentPatient)}
-                  className="qf-btn-secondary"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                >
-                  <Eye size={14} /> View Full Patient Brief & History
-                </button>
-
-                {/* Action buttons */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                </>
+              ) : (
+                <div className="dr-current-empty">
+                  <div style={{ fontSize: '3rem' }}>👨‍⚕️</div>
+                  <p>No active consultation</p>
                   <button
-                    onClick={() => setFollowUpModal(currentPatient.id)}
-                    disabled={completeMutation.isPending}
-                    className="qf-btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'linear-gradient(135deg, #059669, #10b981)' }}
+                    onClick={handleCallNext}
+                    disabled={waiting.length === 0 || callMutation.isPending}
+                    className="dr-btn-white"
+                    style={{ margin: '0 auto', padding: '10px 22px' }}
                   >
-                    <CheckCircle2 size={16} /> Done
-                  </button>
-                  <button
-                    onClick={() => skipMutation.mutate(currentPatient.id)}
-                    disabled={skipMutation.isPending}
-                    className="qf-btn-secondary"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  >
-                    <SkipForward size={16} /> Skip
-                  </button>
-                  <button
-                    onClick={() => window.location.href = `/doctor/prescription?patient=${currentPatient.patient_id}&name=${encodeURIComponent(currentPatient.users?.name)}&entry=${currentPatient.id}`}
-                    className="qf-btn-secondary"
-                    style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  >
-                    <FileText size={16} /> Write Prescription
+                    <User size={13} />
+                    {callMutation.isPending
+                      ? 'Calling...'
+                      : waiting.length > 0
+                        ? `View & Call ${waiting[0]?.token_number}`
+                        : 'No patients waiting'}
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: 22,
-                  background: 'linear-gradient(135deg, #eef3ff, #e3edff)',
-                  display: 'grid', placeItems: 'center',
-                  margin: '0 auto 16px', fontSize: '2rem'
-                }}>
-                  👨‍⚕️
-                </div>
-                <p style={{ color: 'var(--ui-text-2)', marginBottom: 20 }}>No active consultation</p>
-                <button
-                  onClick={handleCallNext}
-                  disabled={waiting.length === 0 || callMutation.isPending}
-                  className="qf-btn-primary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                >
-                  <User size={16} />
-                  {callMutation.isPending
-                    ? 'Calling...'
-                    : waiting.length > 0
-                      ? `View Brief & Call Next (${waiting[0]?.token_number})`
-                      : 'No patients waiting'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Waiting Queue */}
-          <div className="qf-content-card">
-            <div className="qf-section-head" style={{ marginBottom: 16 }}>
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                Waiting Queue
-                <span className="qf-badge qf-badge-blue">{waiting.length}</span>
-              </h2>
+              )}
             </div>
 
-            {waiting.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--ui-text-3)' }}>
-                <div style={{ fontSize: '3rem', marginBottom: 10 }}>✅</div>
-                <p>All caught up!</p>
+            {/* Waiting Queue */}
+            <div className="dr-card">
+              <div className="dr-card-head">
+                <div className="dr-card-title">
+                  <Clock size={16} /> Waiting Queue
+                </div>
+                <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                  {waiting.length} patient{waiting.length !== 1 ? 's' : ''}
+                </span>
               </div>
-            ) : (
-              <div className="qf-scroll" style={{ display: 'grid', gap: 10, maxHeight: 500, overflowY: 'auto', paddingRight: 4 }}>
-                {waiting.map((entry, idx) => {
-                  const pCfg = priorityConfig[entry.priority] || priorityConfig.routine
-                  return (
-                    <div key={entry.id} className={`qf-queue-card ${pCfg.cls}`}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <span style={{ color: 'var(--ui-text-3)', fontSize: '0.82rem', fontWeight: 600, width: 24 }}>
-                            #{idx + 1}
-                          </span>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: 800, color: 'var(--ui-text-1)' }}>
-                                {entry.token_number}
-                              </span>
-                              <span className={`qf-badge ${pCfg.badge}`}>{pCfg.label}</span>
-                            </div>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--ui-text-1)' }}>
-                              {entry.users?.name}
-                            </p>
-                            {entry.ai_summary && (
-                              <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#5b4cdb' }}>
-                                🤖 {entry.ai_summary}
-                              </p>
-                            )}
-                            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+
+              {waiting.length === 0 ? (
+                <div className="dr-empty">
+                  <div className="dr-empty-icon">✅</div>
+                  <p>All caught up! Queue is clear.</p>
+                </div>
+              ) : (
+                <div className="dr-queue-list">
+                  {waiting.map((entry, idx) => {
+                    const cfg = priorityCfg[entry.priority] || priorityCfg.routine
+                    return (
+                      <div key={entry.id} className={`dr-queue-item ${cfg.cls}`}>
+                        <div className="dr-queue-left">
+                          <span className="dr-queue-num">#{idx + 1}</span>
+                          <span className="dr-queue-token">{entry.token_number}</span>
+                          <div className="dr-queue-info">
+                            <div className="dr-queue-name">{entry.users?.name}</div>
+                            <div className="dr-queue-meta">
+                              <span className={`dr-mini-badge ${cfg.mini}`}>{cfg.label}</span>
                               {entry.registration_type === 'self_registered' && (
-                                <span className="qf-badge qf-badge-indigo">📱 Remote</span>
-                              )}
-                              {entry.arrival_status === 'at_home' && (
-                                <span className="qf-badge qf-badge-amber">🏠 At home</span>
+                                <span className="dr-mini-badge dr-mini-remote">📱 Remote</span>
                               )}
                               {entry.arrival_status === 'arrived' && (
-                                <span className="qf-badge qf-badge-green">✅ Here</span>
+                                <span className="dr-mini-badge dr-mini-arrived">✅ Here</span>
                               )}
                             </div>
                           </div>
                         </div>
                         <button
                           onClick={() => handleViewBrief(entry)}
-                          className="qf-btn-primary"
-                          style={{ fontSize: '0.78rem', padding: '8px 14px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          className="dr-call-btn"
                         >
                           <Eye size={12} /> Brief & Call
                         </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Appointments Tab ─── */}
+      {activeTab === 'appointments' && (
+        <div className="dr-body">
+          <div className="dr-card">
+            <div className="dr-date-bar">
+              <Calendar size={16} style={{ color: '#3b82f6' }} />
+              <span className="dr-date-label">Date:</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                className="dr-date-input"
+                min={today}
+              />
+              <div className="dr-date-quick">
+                <button
+                  className={`dr-date-chip ${selectedDate === today ? 'active' : ''}`}
+                  onClick={() => setSelectedDate(today)}
+                >Today</button>
+                <button
+                  className={`dr-date-chip ${selectedDate === tomorrow ? 'active' : ''}`}
+                  onClick={() => setSelectedDate(tomorrow)}
+                >Tomorrow</button>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: 16 }}>
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+              })}
+            </div>
+
+            {apptLoading ? (
+              <div className="dr-spinner">
+                <Loader size={18} className="spin" /> Loading appointments...
+              </div>
+            ) : appointments.length === 0 ? (
+              <div className="dr-empty">
+                <div className="dr-empty-icon">📅</div>
+                <p>No appointments scheduled for this date.</p>
+              </div>
+            ) : (
+              <div className="dr-appt-list">
+                {appointments.map(appt => {
+                  const fmt = formatTime12(appt.slot_time?.slice(0, 5))
+                  const statusCls = {
+                    confirmed: 'dr-status-confirmed',
+                    completed: 'dr-status-completed',
+                    pending: 'dr-status-pending',
+                    cancelled: 'dr-status-cancelled'
+                  }[appt.status] || 'dr-status-pending'
+
+                  return (
+                    <div key={appt.id} className="dr-appt-item">
+                      <div className="dr-appt-time-block">
+                        <div className="dr-appt-time">{fmt.time}</div>
+                        <div className="dr-appt-ampm">{fmt.ampm}</div>
+                      </div>
+                      <div className="dr-appt-info">
+                        <div className="dr-appt-name">{appt.users?.name || 'Patient'}</div>
+                        <div className="dr-appt-meta">
+                          <span className="dr-appt-type">
+                            {appt.visit_type === 'first_visit' ? 'First Visit' : 'Follow-up'}
+                          </span>
+                          {appt.payment_amount && (
+                            <span className="dr-appt-fee">₹{appt.payment_amount}</span>
+                          )}
+                          <span className={`dr-status-badge ${statusCls}`}>
+                            {appt.status?.charAt(0).toUpperCase() + appt.status?.slice(1)}
+                          </span>
+                        </div>
+                        {appt.symptoms && (
+                          <div className="dr-appt-symptoms">💬 {appt.symptoms}</div>
+                        )}
+                        {appt.ai_summary && (
+                          <div className="dr-appt-symptoms" style={{ color: '#7c3aed' }}>
+                            🤖 {appt.ai_summary}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -328,9 +398,56 @@ export default function DoctorPage() {
             )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Patient Brief Modal */}
+      {/* ─── Stats Tab ─── */}
+      {activeTab === 'stats' && (
+        <div className="dr-body">
+          <div className="dr-stats-grid">
+            {[
+              { icon: '⏳', label: 'Waiting', value: waiting.length, bg: '#eff6ff' },
+              { icon: '✅', label: 'Completed Today', value: doneToday, bg: '#f0fdf4' },
+              { icon: '👥', label: 'Total Today', value: queue.length, bg: '#faf5ff' },
+            ].map(s => (
+              <div key={s.label} className="dr-stat-card">
+                <div className="dr-stat-icon" style={{ background: s.bg }}>{s.icon}</div>
+                <div className="dr-stat-label">{s.label}</div>
+                <div className="dr-stat-value">{s.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="dr-card" style={{ marginTop: 0 }}>
+            <div className="dr-card-head">
+              <div className="dr-card-title"><Activity size={16} /> Recent Activity</div>
+            </div>
+            {queue.filter(e => e.status === 'done').length === 0 ? (
+              <div className="dr-empty">
+                <div className="dr-empty-icon">📊</div>
+                <p>No completed consultations yet today.</p>
+              </div>
+            ) : (
+              <div className="dr-queue-list">
+                {queue.filter(e => e.status === 'done').map(entry => (
+                  <div key={entry.id} className="dr-queue-item">
+                    <div className="dr-queue-left">
+                      <span className="dr-queue-token">{entry.token_number}</span>
+                      <div className="dr-queue-info">
+                        <div className="dr-queue-name">{entry.users?.name}</div>
+                        <div className="dr-queue-meta">
+                          <span className="dr-mini-badge dr-mini-arrived">✅ Completed</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Brief Modal ─── */}
       {briefModal && (
         <PatientBriefModal
           patientId={briefModal.patientId}
@@ -344,83 +461,57 @@ export default function DoctorPage() {
         />
       )}
 
-      {/* Follow-up Modal */}
+      {/* ─── Follow-up Modal ─── */}
       {followUpModal && (
-        <div className="qf-overlay">
-          <div className="qf-modal">
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <CheckCircle2 size={18} style={{ color: '#059669' }} />
-              Complete Consultation
-            </h2>
-            <p style={{ marginTop: 4 }}>
-              {currentPatient?.users?.name} — {currentPatient?.token_number}
-            </p>
+        <div className="dr-overlay">
+          <div className="dr-modal">
+            <h2><CheckCircle2 size={18} style={{ color: '#059669' }} /> Complete Consultation</h2>
+            <p>{currentPatient?.users?.name} — {currentPatient?.token_number}</p>
 
-            <div style={{ marginTop: 18, display: 'grid', gap: 14 }}>
+            <div style={{ display: 'grid', gap: 14 }}>
               <div>
-                <label className="qf-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div className="dr-modal-label">
                   <CalendarPlus size={13} /> Schedule follow-up? (optional)
-                </label>
+                </div>
                 <input
                   type="date"
                   value={followUpDate}
                   onChange={e => setFollowUpDate(e.target.value)}
-                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
-                  className="qf-input"
+                  min={tomorrow}
+                  className="dr-modal-input"
                 />
               </div>
 
               {followUpDate && (
                 <>
                   <div>
-                    <label className="qf-label">Follow-up reason</label>
+                    <div className="dr-modal-label">Follow-up reason</div>
                     <input
                       value={followUpReason}
                       onChange={e => setFollowUpReason(e.target.value)}
-                      placeholder="e.g. Check blood pressure, Review test results"
-                      className="qf-input"
+                      placeholder="e.g. Check blood pressure, Review results"
+                      className="dr-modal-input"
                     />
                   </div>
-                  <div style={{
-                    borderRadius: 12, padding: 12,
-                    background: 'linear-gradient(165deg, #eef3ff, #e3edff)',
-                    border: '1px solid #c0d3ff'
-                  }}>
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#1452ff' }}>
-                      📱 Patient will receive a WhatsApp reminder about their follow-up date
-                    </p>
+                  <div className="dr-info-box">
+                    📱 Patient will receive a reminder about their follow-up date.
                   </div>
                 </>
               )}
 
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div className="dr-modal-actions">
                 <button
-                  onClick={() => {
-                    setFollowUpModal(null)
-                    setFollowUpDate('')
-                    setFollowUpReason('')
-                  }}
-                  className="qf-btn-secondary"
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
+                  onClick={() => { setFollowUpModal(null); setFollowUpDate(''); setFollowUpReason('') }}
+                  className="dr-btn-secondary"
+                >Cancel</button>
                 <button
                   onClick={handleComplete}
                   disabled={followUpSaving}
-                  className="qf-btn-primary"
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(135deg, #059669, #10b981)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-                  }}
+                  className="dr-btn-primary"
+                  style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
                 >
                   <CheckCircle2 size={14} />
-                  {followUpSaving
-                    ? 'Saving...'
-                    : followUpDate
-                      ? 'Complete & Set Follow-up'
-                      : 'Complete'}
+                  {followUpSaving ? 'Saving...' : followUpDate ? 'Complete & Follow-up' : 'Complete'}
                 </button>
               </div>
             </div>

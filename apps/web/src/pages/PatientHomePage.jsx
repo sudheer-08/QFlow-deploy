@@ -344,21 +344,26 @@ export default function PatientHomePage() {
             + List Clinic
           </button>
           <button className="ph-btn ph-btn-secondary" onClick={() => navigate('/login')}>
-            Clinic Staff Login
+            Staff Login
           </button>
           {user?.role === 'patient' ? (
             <>
-              <button className="ph-btn ph-btn-primary" onClick={() => navigate('/patient/profile')}>
-                <UserCircle2 size={14} style={{ marginRight: 6 }} /> My Profile
+              <button
+                className="ph-user-chip"
+                onClick={() => navigate('/patient/profile')}
+                title="View my profile"
+              >
+                <span className="ph-user-avatar">
+                  {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
+                <span className="ph-user-name">{user.name?.split(' ')[0]}</span>
               </button>
               <button
                 className="ph-btn ph-btn-secondary"
-                onClick={() => {
-                  logout()
-                  navigate('/')
-                }}
+                onClick={() => { logout(); navigate('/') }}
+                style={{ padding: '8px 12px' }}
               >
-                <LogOut size={14} style={{ marginRight: 6 }} /> Sign Out
+                <LogOut size={14} />
               </button>
             </>
           ) : (

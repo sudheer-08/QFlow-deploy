@@ -151,7 +151,7 @@ router.get('/live', async (req, res) => {
       .eq('tenant_id', req.user.tenantId)
       .in('status', ['waiting', 'called', 'in_progress'])
       .gte('registered_at', start)
-      .order('priority', { ascending: false })  // critical first
+      .order('priority', { ascending: false })
       .order('registered_at', { ascending: true });
 
     if (error) throw error;
@@ -161,6 +161,38 @@ router.get('/live', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch queue' });
   }
 });
+
+// ─── GET /api/queue/doctor/:doctorId (Doctor's personal queue for today) ───
+router.get('/doctor/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const today = getLocalDateString();
+    const { start } = getDayBounds(today);
+
+    const { data: entries, error } = await supabase
+      .from('queue_entries')
+      .select(`
+        id, token_number, status, priority, registration_type,
+        arrival_status, ai_summary, symptoms, registered_at, called_at,
+        patient_id,
+        users!patient_id(name, phone),
+        doctors:users!doctor_id(name)
+      `)
+      .eq('tenant_id', req.user.tenantId)
+      .eq('doctor_id', doctorId)
+      .gte('registered_at', start)
+      .order('priority', { ascending: false })
+      .order('registered_at', { ascending: true });
+
+    if (error) throw error;
+    res.json(entries || []);
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch doctor queue' });
+  }
+});
+
+
 
 // ─── PATCH /api/queue/:entryId/call (Doctor calls next patient) ───
 router.patch('/:entryId/call', requireRole('doctor', 'clinic_admin'), async (req, res) => {

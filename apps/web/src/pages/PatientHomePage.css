@@ -118,6 +118,52 @@
   border-color: var(--qf-outline-variant);
 }
 
+/* ─── Logged-in User Chip ─── */
+.ph-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, var(--qf-primary), var(--qf-primary-dim));
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 16px 6px 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0,61,155,0.25);
+}
+
+.ph-user-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,61,155,0.35);
+}
+
+.ph-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  display: grid;
+  place-items: center;
+  font-family: 'Manrope', sans-serif;
+  flex-shrink: 0;
+}
+
+.ph-user-name {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  font-family: 'Inter', sans-serif;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
 /* ─── Asymmetric Hero ─── */
 .ph-hero {
   border-radius: var(--ui-radius-xl);

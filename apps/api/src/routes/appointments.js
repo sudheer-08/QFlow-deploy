@@ -558,6 +558,30 @@ router.patch('/:id/cancel', authenticate, async (req, res) => {
   }
 });
 
+// ─── GET /api/appointments/clinic/by-date?date=YYYY-MM-DD ───
+router.get('/clinic/by-date', authenticate, async (req, res) => {
+  try {
+    const date = req.query.date || getLocalDateString();
+    assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
+
+    const { data } = await supabase
+      .from('appointments')
+      .select(`
+        id, slot_time, status, priority, visit_type, symptoms, ai_summary, payment_amount,
+        users!patient_id(name, phone),
+        doctors:users!doctor_id(id, name)
+      `)
+      .eq('tenant_id', req.user.tenantId)
+      .eq('appointment_date', date)
+      .in('status', ['confirmed', 'pending', 'completed', 'cancelled'])
+      .order('slot_time', { ascending: true });
+
+    res.json(data || []);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Failed to fetch appointments' });
+  }
+});
+
 // ─── GET /api/appointments/clinic/today ───────────────
 router.get('/clinic/today', authenticate, async (req, res) => {
   try {
