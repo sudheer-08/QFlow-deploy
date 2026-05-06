@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import {
   Users, Clock, Stethoscope, CheckCircle2, Smartphone, Timer,
   ExternalLink, LogOut, Wifi, WifiOff, RefreshCw,
-  TrendingUp, DollarSign, ArrowRight
+  TrendingUp, DollarSign, ArrowRight, Calendar
 } from 'lucide-react'
 
 export default function AdminPage() {
@@ -60,8 +60,9 @@ export default function AdminPage() {
   const dataAgeSeconds = summaryUpdatedAt ? Math.max(0, Math.floor((now - summaryUpdatedAt) / 1000)) : null
 
   const stats = [
-    { label: 'Total Patients', value: summary?.total || 0, Icon: Users, bg: 'linear-gradient(135deg, #1e293b, #334155)' },
-    { label: 'Waiting', value: summary?.waiting || 0, Icon: Clock, bg: 'linear-gradient(135deg, #1452ff, #3b82f6)' },
+    { label: 'Queue Patients', value: summary?.total || 0, Icon: Users, bg: 'linear-gradient(135deg, #1e293b, #334155)' },
+    { label: 'Appointments', value: summary?.totalAppointments || 0, Icon: Calendar, bg: 'linear-gradient(135deg, #0ea5e9, #0284c7)', link: '/reception/bookings' },
+    { label: 'Waiting (Queue)', value: summary?.waiting || 0, Icon: Clock, bg: 'linear-gradient(135deg, #1452ff, #3b82f6)' },
     { label: 'In Progress', value: summary?.inProgress || 0, Icon: Stethoscope, bg: 'linear-gradient(135deg, #7c3aed, #a855f7)' },
     { label: 'Completed', value: summary?.done || 0, Icon: CheckCircle2, bg: 'linear-gradient(135deg, #059669, #10b981)' },
     { label: 'Remote', value: summary?.remote || 0, Icon: Smartphone, bg: 'linear-gradient(135deg, #4338ca, #6366f1)' },
@@ -127,13 +128,24 @@ export default function AdminPage() {
             <span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
           </div>
           <div className="qf-stat-grid qf-stagger">
-            {stats.map(s => (
-              <div key={s.label} className="qf-stat-card" style={{ background: s.bg, color: '#fff' }}>
-                <span className="qf-stat-icon"><s.Icon size={22} /></span>
-                <span className="qf-stat-value">{s.value}</span>
-                <span className="qf-stat-label">{s.label}</span>
-              </div>
-            ))}
+            {stats.map(s => {
+              const content = (
+                <>
+                  <span className="qf-stat-icon"><s.Icon size={22} /></span>
+                  <span className="qf-stat-value">{s.value}</span>
+                  <span className="qf-stat-label">{s.label}</span>
+                </>
+              );
+              return s.link ? (
+                <Link key={s.label} to={s.link} className="qf-stat-card" style={{ background: s.bg, color: '#fff', textDecoration: 'none', display: 'flex', flexDirection: 'column' }}>
+                  {content}
+                </Link>
+              ) : (
+                <div key={s.label} className="qf-stat-card" style={{ background: s.bg, color: '#fff' }}>
+                  {content}
+                </div>
+              );
+            })}
           </div>
         </section>
 

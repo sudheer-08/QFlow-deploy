@@ -557,7 +557,7 @@ export default function BookAppointmentPage() {
       </div>
 
       {!isReschedule && (
-        <div className="ba-note">Fee is paid at the clinic. Slot gets confirmed immediately after submission.</div>
+        <div className="ba-note">Fee is paid at the clinic. Slot will be reviewed and confirmed by the clinic.</div>
       )}
     </section>
   )

@@ -343,7 +343,7 @@ router.post('/book', async (req, res) => {
         symptoms,
         ai_summary: aiSummary,
         priority,
-        status: 'confirmed',
+        status: 'pending',
         payment_status: 'pending',
         payment_amount: consultationFee,
         tracker_url_token: trackerToken
@@ -364,14 +364,13 @@ router.post('/book', async (req, res) => {
     });
 
     const confirmationMessage =
-      `✅ *Appointment Confirmed!*\n\n` +
+      `⏳ *Appointment Request Sent!*\n\n` +
       `🏥 *${clinicName}*\n` +
       `👨‍⚕️ ${doctorName}\n` +
       `📅 ${appointmentDate}\n` +
       `⏰ ${slotTime}\n` +
       `💰 Fee: ₹${consultationFee}\n\n` +
-      `Track your appointment:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}\n\n` +
-      `We'll remind you 1 hour before. 🦷`;
+      `We will review and confirm your slot shortly. Track status:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}`;
 
     // Prefer userId delivery so logged-in patients receive push even if phone formats differ.
     queueNotificationSend({

@@ -16,6 +16,13 @@ router.get('/summary/today', requireRole('receptionist', 'doctor', 'clinic_admin
       .eq('tenant_id', tenantId)
       .gte('registered_at', `${today}T00:00:00`);
 
+    const { count: totalAppointments } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('appointment_date', today)
+      .in('status', ['confirmed', 'pending']);
+
     const total = entries?.length || 0;
     const waiting = entries?.filter(e => e.status === 'waiting').length || 0;
     const inProgress = entries?.filter(e => e.status === 'in_progress').length || 0;
@@ -28,7 +35,7 @@ router.get('/summary/today', requireRole('receptionist', 'doctor', 'clinic_admin
       ? Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length)
       : 0;
 
-    res.json({ total, waiting, inProgress, done, remote, enRoute, avgWaitMins: avgWait });
+    res.json({ total, waiting, inProgress, done, remote, enRoute, avgWaitMins: avgWait, totalAppointments: totalAppointments || 0 });
 
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch analytics' });
