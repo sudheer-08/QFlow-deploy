@@ -87,11 +87,13 @@ export default function DoctorPage() {
 
   useEffect(() => {
     connectClinic(user.tenantId, user.id, user.role)
-    socket.on('queue:patient_added', () => queryClient.invalidateQueries(['doctor-queue']))
-    socket.on('patient:arrived', () => queryClient.invalidateQueries(['doctor-queue']))
+    socket.on('queue:patient_added', () => queryClient.invalidateQueries({ queryKey: ['doctor-queue'] }))
+    socket.on('patient:arrived', () => queryClient.invalidateQueries({ queryKey: ['doctor-queue'] }))
+    socket.on('appointment:new', () => queryClient.invalidateQueries({ queryKey: ['clinic-appointments'] }))
     return () => {
       socket.off('queue:patient_added')
       socket.off('patient:arrived')
+      socket.off('appointment:new')
     }
   }, [])
 

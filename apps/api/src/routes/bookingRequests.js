@@ -50,7 +50,7 @@ router.get('/all', async (req, res) => {
       .eq('tenant_id', tenantId)
       .order('appointment_date', { ascending: true });
 
-    if (status) query = query.eq('status', status);
+    if (status && status !== 'all') query = query.eq('status', status);
 
     const { data, error } = await query;
     if (error) throw error;
