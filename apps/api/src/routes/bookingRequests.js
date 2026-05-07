@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../models/supabase');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { isIsoDate } = require('../utils/validation');
 const {
   sendAppointmentConfirmed,
   sendAppointmentDeclined,
@@ -37,8 +38,18 @@ router.get('/pending', async (req, res) => {
 // GET all bookings with filter — no date restriction
 router.get('/all', async (req, res) => {
   const tenantId = req.user.tenantId;
-  const { status } = req.query;
+  const { status, startDate, endDate, sort } = req.query;
   try {
+    if (startDate && !isIsoDate(startDate)) {
+      return res.status(400).json({ error: 'startDate must be in YYYY-MM-DD format' });
+    }
+
+    if (endDate && !isIsoDate(endDate)) {
+      return res.status(400).json({ error: 'endDate must be in YYYY-MM-DD format' });
+    }
+
+    const ascending = String(sort || '').toLowerCase() === 'asc';
+
     let query = supabase
       .from('appointments')
       .select(`
@@ -48,9 +59,12 @@ router.get('/all', async (req, res) => {
         doctor:users!appointments_doctor_id_fkey(id, name)
       `)
       .eq('tenant_id', tenantId)
-      .order('appointment_date', { ascending: true });
+      .order('appointment_date', { ascending })
+      .order('slot_time', { ascending });
 
     if (status && status !== 'all') query = query.eq('status', status);
+    if (startDate) query = query.gte('appointment_date', startDate);
+    if (endDate) query = query.lte('appointment_date', endDate);
 
     const { data, error } = await query;
     if (error) throw error;

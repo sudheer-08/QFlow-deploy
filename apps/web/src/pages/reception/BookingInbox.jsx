@@ -40,11 +40,44 @@ export default function BookingInbox() {
     };
   }, [user?.tenantId, user?.id, user?.role, filter]);
 
+  const toLocalIsoDate = (dateObj) => {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getUpcomingWindow = () => {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 4);
+    return {
+      startDate: toLocalIsoDate(start),
+      endDate: toLocalIsoDate(end)
+    };
+  };
+
+  const sortByLatestDateTime = (items = []) => {
+    return [...items].sort((a, b) => {
+      const aKey = `${a?.appointment_date || ''} ${a?.slot_time || '00:00'}`;
+      const bKey = `${b?.appointment_date || ''} ${b?.slot_time || '00:00'}`;
+      return bKey.localeCompare(aKey);
+    });
+  };
+
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/booking-requests/all?status=${filter}`);
-      setBookings(res.data.bookings || []);
+      const { startDate, endDate } = getUpcomingWindow();
+      const res = await api.get('/booking-requests/all', {
+        params: {
+          status: filter,
+          startDate,
+          endDate,
+          sort: 'desc'
+        }
+      });
+      setBookings(sortByLatestDateTime(res.data.bookings || []));
     } catch {
       toast.error('Failed to load bookings');
     } finally {
@@ -120,7 +153,7 @@ export default function BookingInbox() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Booking Inbox</h1>
-            <p className="text-gray-500 text-sm">Review and manage appointment requests</p>
+            <p className="text-gray-500 text-sm">Review and manage bookings from today through the next 4 days</p>
           </div>
           <button onClick={fetchBookings}
             className="flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm hover:bg-gray-50">
