@@ -1,0 +1,263 @@
+/* Consultation Modal Styles */
+
+.dr-consultation-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  overflow: hidden;
+}
+
+/* Header */
+.dr-consult-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 12px;
+}
+
+.dr-consult-patient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.dr-consult-token {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #3b82f6, #0284c7);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.dr-consult-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.dr-consult-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.dr-consult-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dr-consult-btn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.dr-consult-btn-secondary {
+  background: #f3f4f6;
+  color: #475569;
+  border: 1px solid #e5e7eb;
+}
+
+.dr-consult-btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.dr-consult-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.dr-consult-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #fca5a5;
+}
+
+.dr-consult-btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+}
+
+.dr-consult-btn-success:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.dr-consult-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dr-consult-btn-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.dr-consult-btn-close:hover {
+  background: #e5e7eb;
+  color: #1e293b;
+}
+
+/* Tabs */
+.dr-consult-tabs {
+  display: flex;
+  gap: 1px;
+  padding: 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  overflow-x: auto;
+}
+
+.dr-consult-tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.dr-consult-tab:hover {
+  color: #1e293b;
+  background: white;
+}
+
+.dr-consult-tab.active {
+  color: #0284c7;
+  border-bottom-color: #0284c7;
+  background: white;
+}
+
+/* Content Area */
+.dr-consult-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Follow-up Section */
+.dr-consult-followup {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dr-followup-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.dr-followup-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+/* Footer */
+.dr-consult-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: white;
+}
+
+.dr-consult-footer .dr-consult-btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Input Styles */
+.dr-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.dr-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Scrollbar */
+.dr-consult-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dr-consult-content::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.dr-consult-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dr-consult-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dr-consult-actions {
+    display: none;
+  }
+
+  .dr-consult-tabs {
+    overflow-x: auto;
+  }
+
+  .dr-consult-tab {
+    flex: none;
+    min-width: 100px;
+  }
+}

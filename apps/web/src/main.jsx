@@ -16,6 +16,7 @@ import NetworkStatusBar from './components/NetworkStatusBar'
 import LoginPage from './pages/LoginPage'
 import ReceptionPage from './pages/ReceptionPage'
 import DoctorPage from './pages/DoctorPage'
+import DoctorDashboard from './pages/doctor/Dashboard'
 import AdminPage from './pages/AdminPage'
 
 // Reception sub-pages
@@ -178,7 +179,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             {/* ─── Doctor Routes ─── */}
             <Route path="/doctor" element={
               <ProtectedRoute allowedRoles={['doctor', 'clinic_admin']}>
-                <DoctorPage />
+                <DoctorDashboard />
               </ProtectedRoute>
             } />
             <Route path="/doctor/prescription" element={

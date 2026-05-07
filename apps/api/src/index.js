@@ -121,6 +121,7 @@ app.use('/api/clinic-profile',      require('./routes/clinicProfile'));
 app.use('/api/follow-up',           require('./routes/followUp'));
 app.use('/api/post-visit',          require('./routes/postVisit'));
 app.use('/api/booking-requests',    require('./routes/bookingRequests'));
+app.use('/api/dashboard-metrics',   require('./routes/dashboardMetrics'));
 
 // Versioned v1 routes
 app.use('/api/v1/auth',                require('./routes/auth'));

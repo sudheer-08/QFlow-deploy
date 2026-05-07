@@ -1,0 +1,270 @@
+/* Prescription Builder Styles */
+
+.dr-prescription {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+.dr-rx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dr-rx-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.dr-rx-count {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Form */
+.dr-rx-form {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dr-rx-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dr-rx-form-row:last-child {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.dr-rx-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dr-rx-form-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dr-rx-input,
+.dr-rx-select {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.dr-rx-input:focus,
+.dr-rx-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.dr-rx-select {
+  cursor: pointer;
+}
+
+.dr-rx-dosage {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.dr-rx-dosage .dr-rx-input {
+  flex: 1;
+}
+
+.dr-rx-dosage .dr-rx-select {
+  flex: 0.7;
+}
+
+.dr-rx-btn-add {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #0284c7);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.3s ease;
+  align-self: flex-end;
+}
+
+.dr-rx-btn-add:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.dr-rx-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Medicine List */
+.dr-rx-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+}
+
+.dr-rx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.dr-rx-empty svg {
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.dr-rx-empty p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.dr-rx-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+  gap: 12px;
+}
+
+.dr-rx-item:last-child {
+  border-bottom: none;
+}
+
+.dr-rx-item-content {
+  flex: 1;
+}
+
+.dr-rx-item-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.dr-rx-item-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.dr-rx-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #0284c7;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dr-rx-item-instructions {
+  font-size: 11px;
+  color: #7c3aed;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.dr-rx-btn-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.dr-rx-btn-remove:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+/* Summary */
+.dr-rx-summary {
+  padding: 8px 12px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  margin-top: auto;
+}
+
+/* Scrollbar */
+.dr-rx-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dr-rx-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.dr-rx-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dr-rx-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dr-rx-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dr-rx-form-row:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  .dr-rx-btn-add {
+    align-self: auto;
+    width: 100%;
+    justify-content: center;
+  }
+}

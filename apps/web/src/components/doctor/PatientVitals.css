@@ -1,0 +1,103 @@
+/* Patient Vitals Styles */
+
+.dr-vitals {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.dr-vitals h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.dr-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.dr-vital-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dr-vital-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.dr-vital-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dr-vital-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.dr-vital-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.dr-vital-unit {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dr-vitals-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.dr-vital-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.dr-vital-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dr-vital-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+
+.dr-vital-category {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dr-vitals-grid {
+    grid-template-columns: 1fr;
+  }
+}

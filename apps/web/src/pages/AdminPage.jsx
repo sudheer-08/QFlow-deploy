@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Users, Clock, Stethoscope, CheckCircle2, Smartphone, Timer,
   ExternalLink, LogOut, Wifi, WifiOff, RefreshCw,
@@ -12,6 +12,7 @@ import {
 
 export default function AdminPage() {
   const { user, logout } = useAuthStore()
+  const navigate = useNavigate()
   const [now, setNow] = useState(Date.now())
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
 
@@ -19,16 +20,29 @@ export default function AdminPage() {
     data: summary,
     isFetching: isSummaryFetching,
     isError: isSummaryError,
-    dataUpdatedAt: summaryUpdatedAt
+    dataUpdatedAt: summaryUpdatedAt,
+    refetch: refetchSummary
   } = useQuery({
     queryKey: ['summary-today'],
-    queryFn: () => api.get('/analytics/summary/today').then(r => r.data),
+    queryFn: () => api.get('/dashboard-metrics/summary/today').then(r => r.data),
     refetchInterval: 30000
   })
 
-  const { data: waitTrends = [] } = useQuery({
+  const {
+    data: waitTrends = [],
+    isLoading: isTrendsLoading
+  } = useQuery({
     queryKey: ['wait-trends'],
-    queryFn: () => api.get('/analytics/wait-times?days=14').then(r => r.data)
+    queryFn: () => api.get('/dashboard-metrics/wait-times?days=14').then(r => r.data)
+  })
+
+  const {
+    data: revenue,
+    isLoading: isRevenueLoading
+  } = useQuery({
+    queryKey: ['revenue-today'],
+    queryFn: () => api.get('/dashboard-metrics/revenue/today').then(r => r.data),
+    refetchInterval: 60000
   })
 
   useEffect(() => {
@@ -60,7 +74,7 @@ export default function AdminPage() {
   const dataAgeSeconds = summaryUpdatedAt ? Math.max(0, Math.floor((now - summaryUpdatedAt) / 1000)) : null
 
   const stats = [
-    { label: 'Queue Patients', value: summary?.total || 0, Icon: Users, bg: 'linear-gradient(135deg, #1e293b, #334155)' },
+    { label: 'Queue Patients', value: summary?.total || 0, Icon: Users, bg: 'linear-gradient(135deg, #1e293b, #334155)', onClick: () => navigate('/reception') },
     { label: 'Appointments', value: summary?.totalAppointments || 0, Icon: Calendar, bg: 'linear-gradient(135deg, #0ea5e9, #0284c7)', link: '/reception/bookings' },
     { label: 'Waiting (Queue)', value: summary?.waiting || 0, Icon: Clock, bg: 'linear-gradient(135deg, #1452ff, #3b82f6)' },
     { label: 'In Progress', value: summary?.inProgress || 0, Icon: Stethoscope, bg: 'linear-gradient(135deg, #7c3aed, #a855f7)' },
@@ -136,12 +150,37 @@ export default function AdminPage() {
                   <span className="qf-stat-label">{s.label}</span>
                 </>
               );
-              return s.link ? (
-                <Link key={s.label} to={s.link} className="qf-stat-card" style={{ background: s.bg, color: '#fff', textDecoration: 'none', display: 'flex', flexDirection: 'column' }}>
-                  {content}
-                </Link>
-              ) : (
-                <div key={s.label} className="qf-stat-card" style={{ background: s.bg, color: '#fff' }}>
+              const containerClass = "qf-stat-card"
+              const containerStyle = { background: s.bg, color: '#fff' }
+
+              if (s.link) {
+                return (
+                  <Link
+                    key={s.label}
+                    to={s.link}
+                    className={containerClass}
+                    style={{ ...containerStyle, textDecoration: 'none', display: 'flex', flexDirection: 'column' }}
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              if (s.onClick) {
+                return (
+                  <button
+                    key={s.label}
+                    className={containerClass}
+                    style={{ ...containerStyle, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
+                    onClick={s.onClick}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+
+              return (
+                <div key={s.label} className={containerClass} style={containerStyle}>
                   {content}
                 </div>
               );
@@ -157,7 +196,11 @@ export default function AdminPage() {
               Average Wait Time — Last 14 Days
             </h2>
           </div>
-          {waitTrends.length > 0 ? (
+          {isTrendsLoading ? (
+            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <RefreshCw size={20} className="animate-spin" style={{ color: 'var(--ui-primary)' }} />
+            </div>
+          ) : waitTrends.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={waitTrends}>
                 <defs>
@@ -190,7 +233,7 @@ export default function AdminPage() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="avgWaitMins"
+                  dataKey="avgWait"
                   stroke="url(#waitGrad)"
                   strokeWidth={3}
                   dot={{ fill: '#1452ff', r: 5, strokeWidth: 2, stroke: '#fff' }}
@@ -210,8 +253,12 @@ export default function AdminPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ fontSize: '0.82rem', opacity: 0.85, margin: 0 }}>Today's Revenue</p>
-              <p style={{ fontSize: '2.4rem', fontWeight: 800, margin: '4px 0 0', fontFamily: 'Sora, sans-serif' }}>₹0</p>
-              <p style={{ fontSize: '0.74rem', opacity: 0.75, marginTop: 4 }}>Click to view full breakdown</p>
+              <p style={{ fontSize: '2.4rem', fontWeight: 800, margin: '4px 0 0', fontFamily: 'Sora, sans-serif' }}>
+                {isRevenueLoading ? '...' : `₹${(revenue?.totalRevenue || 0).toLocaleString('en-IN')}`}
+              </p>
+              <p style={{ fontSize: '0.74rem', opacity: 0.75, marginTop: 4 }}>
+                {revenue?.completedCount || 0} completed {revenue?.completedCount === 1 ? 'visit' : 'visits'}
+              </p>
             </div>
             <DollarSign size={56} style={{ opacity: 0.2 }} />
           </div>

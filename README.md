@@ -72,13 +72,30 @@ qflow/
 └── README.md
 ```
 
+## ✨ New: Doctor Dashboard (Full Implementation)
+
+The Doctor Dashboard provides a complete consultation management system with:
+
+- **Live Queue Panel**: Real-time patient queue with priority badges and wait times
+- **Consultation Interface**: Tabbed workspace for:
+  - 📝 Consultation Notes with Web Speech API voice input
+  - 💊 Prescription Builder (add multiple medicines with dosage, frequency, duration)
+  - 📊 Patient Vitals (BP, HR, Temperature, O2 Saturation, BMI calculation)
+  - 📋 Patient History (previous visits and consultation timeline)
+- **Quick Actions**: Call, View Brief, Skip, No-Show, Complete & Save
+- **Follow-up Scheduling**: Automatic patient reminders
+- **Real-Time Updates**: Socket.io integration for instant queue changes
+- **Dashboard Stats**: Live metrics for waiting, in-progress, and completed consultations
+
+📖 **See [DOCTOR_DASHBOARD_GUIDE.md](DOCTOR_DASHBOARD_GUIDE.md) for full implementation details.**
+
 ## Core Product Flows
 
 ### Staff
 
 - Login: receptionist, doctor, clinic admin
 - Reception dashboard: live queue, register walk-ins, call/complete/no-show flows
-- Doctor dashboard: consultation and prescription workflows
+- Doctor dashboard: **NEW** full consultation workflow with notes, prescription, vitals, history
 - Admin dashboards: analytics, revenue, communications, performance, profile, PIN management
 
 ### Patient

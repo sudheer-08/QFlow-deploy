@@ -1,0 +1,164 @@
+/* Patient History Styles */
+
+.dr-history {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.dr-history h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.dr-history-loading,
+.dr-history-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.dr-history-loading svg,
+.dr-history-error svg {
+  animation: spin 1s linear infinite;
+}
+
+.dr-history-error {
+  color: #ef4444;
+}
+
+.dr-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.dr-history-empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+.dr-history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dr-history-item {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.dr-history-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0284c7;
+  margin-bottom: 8px;
+}
+
+.dr-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dr-history-doctor {
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.dr-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dr-history-section label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dr-history-section p {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+  word-break: break-word;
+}
+
+.dr-history-followup {
+  font-size: 11px;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border-left: 2px solid #fcd34d;
+}
+
+/* Scrollbar */
+.dr-history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dr-history-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.dr-history-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dr-history-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dr-history-item {
+    padding: 10px;
+  }
+
+  .dr-history-section p {
+    font-size: 11px;
+  }
+}
