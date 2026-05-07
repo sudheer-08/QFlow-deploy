@@ -194,7 +194,9 @@ router.post('/register-clinic', async (req, res) => {
         email: user.email,
         role: user.role,
         tenantId: tenant.id,
-        clinicName: tenant.name
+        clinicName: tenant.name,
+        subdomain: tenant.subdomain,
+        tenantSubdomain: tenant.subdomain
       },
       ...tokens
     });
@@ -303,7 +305,9 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         tenantId: user.tenant_id,
-        clinicName: user.tenants?.name
+        clinicName: user.tenants?.name,
+        subdomain: user.tenants?.subdomain,
+        tenantSubdomain: user.tenants?.subdomain
       },
       ...tokens
     });

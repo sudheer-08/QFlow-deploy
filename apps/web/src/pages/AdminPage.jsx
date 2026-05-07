@@ -15,6 +15,7 @@ export default function AdminPage() {
   const navigate = useNavigate()
   const [now, setNow] = useState(Date.now())
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const clinicSubdomain = user?.subdomain || user?.tenantSubdomain || user?.tenants?.subdomain || ''
 
   const {
     data: summary,
@@ -84,13 +85,13 @@ export default function AdminPage() {
   ]
 
   const quickLinks = [
-    { label: 'Patient Join Page', href: `/join/${user?.subdomain}`, icon: '📱', desc: 'Share with patients' },
+    { label: 'Patient Join Page', href: clinicSubdomain ? `/join/${clinicSubdomain}` : '/admin/profile', icon: '📱', desc: clinicSubdomain ? 'Share with patients' : 'Set clinic subdomain first' },
     { label: 'Queue Display', href: '/display', icon: '📺', desc: 'Open on clinic TV' },
     { label: 'Reception', href: '/reception', icon: '🏥', desc: 'Register walk-ins' },
     { label: 'Doctor View', href: '/doctor', icon: '👨‍⚕️', desc: 'Call patients' },
     { label: 'Advanced Analytics', href: '/admin/analytics', icon: '📊', desc: 'Peak hours & doctor stats' },
     { label: 'Holidays', href: '/admin/holidays', icon: '🗓️', desc: 'Set clinic holidays' },
-    { label: 'QR Poster', href: `/clinic/${user?.subdomain}/qr`, icon: '🖨️', desc: 'Print for clinic door' },
+    { label: 'QR Poster', href: clinicSubdomain ? `/clinic/${clinicSubdomain}/qr` : '/admin/profile', icon: '🖨️', desc: clinicSubdomain ? 'Print for clinic door' : 'Set clinic subdomain first' },
     { label: 'Revenue Dashboard', href: '/admin/revenue', icon: '💰', desc: 'Daily earnings & fees' },
     { label: 'Booking Inbox', href: '/reception/bookings', icon: '📥', desc: 'Review appointment requests' },
     { label: 'Waitlist Manager', href: '/reception/waitlist', icon: '📋', desc: 'Manage overflow patients' },
