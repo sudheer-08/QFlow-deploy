@@ -25,6 +25,7 @@ export default function ReceptionPage() {
   const [registered, setRegistered] = useState(null)
   const [arrivedAlert, setArrivedAlert] = useState(null)
   const [noShowLoading, setNoShowLoading] = useState({})
+  const [actionLoading, setActionLoading] = useState({})
 
   const { data: doctors = [] } = useQuery({
     queryKey: ['doctors'],
@@ -75,6 +76,36 @@ export default function ReceptionPage() {
       queryClient.invalidateQueries(['queue-live'])
       queryClient.invalidateQueries(['summary-today'])
     }
+  })
+
+  const callPatientMutation = useMutation({
+    mutationFn: (entryId) => api.patch(`/queue/${entryId}/call`),
+    onSuccess: () => {
+      toast.success('Patient called!')
+      queryClient.invalidateQueries(['queue-live'])
+      queryClient.invalidateQueries(['summary-today'])
+    },
+    onError: () => toast.error('Failed to call patient')
+  })
+
+  const completePatientMutation = useMutation({
+    mutationFn: (entryId) => api.patch(`/queue/${entryId}/complete`),
+    onSuccess: () => {
+      toast.success('Patient marked complete!')
+      queryClient.invalidateQueries(['queue-live'])
+      queryClient.invalidateQueries(['summary-today'])
+    },
+    onError: () => toast.error('Failed to complete visit')
+  })
+
+  const skipPatientMutation = useMutation({
+    mutationFn: (entryId) => api.patch(`/queue/${entryId}/skip`),
+    onSuccess: () => {
+      toast.success('Patient skipped')
+      queryClient.invalidateQueries(['queue-live'])
+      queryClient.invalidateQueries(['summary-today'])
+    },
+    onError: () => toast.error('Failed to skip patient')
   })
 
   useEffect(() => {
@@ -380,15 +411,90 @@ export default function ReceptionPage() {
                               hour: '2-digit', minute: '2-digit'
                             })}
                           </span>
-                          {entry.status === 'waiting' && (
-                            <button
-                              onClick={() => markNoShow(entry.id)}
-                              disabled={noShowLoading[entry.id]}
-                              className="qf-btn-danger"
-                            >
-                              {noShowLoading[entry.id] ? '...' : '✗ No-show'}
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {entry.status === 'waiting' && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setActionLoading(p => ({ ...p, [`call-${entry.id}`]: true }))
+                                    callPatientMutation.mutate(entry.id, {
+                                      onSettled: () => setActionLoading(p => ({ ...p, [`call-${entry.id}`]: false }))
+                                    })
+                                  }}
+                                  disabled={actionLoading[`call-${entry.id}`]}
+                                  className="qf-btn-success"
+                                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                  title="Call next patient"
+                                >
+                                  {actionLoading[`call-${entry.id}`] ? '...' : '📢 Call'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActionLoading(p => ({ ...p, [`no-show-${entry.id}`]: true }))
+                                    markNoShow(entry.id).then(() => {
+                                      setActionLoading(p => ({ ...p, [`no-show-${entry.id}`]: false }))
+                                    }).catch(() => {
+                                      setActionLoading(p => ({ ...p, [`no-show-${entry.id}`]: false }))
+                                    })
+                                  }}
+                                  disabled={actionLoading[`no-show-${entry.id}`] || noShowLoading[entry.id]}
+                                  className="qf-btn-danger"
+                                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                  title="Mark as no-show"
+                                >
+                                  {actionLoading[`no-show-${entry.id}`] || noShowLoading[entry.id] ? '...' : '✗ No-show'}
+                                </button>
+                              </>
+                            )}
+                            {entry.status === 'called' && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setActionLoading(p => ({ ...p, [`complete-${entry.id}`]: true }))
+                                    completePatientMutation.mutate(entry.id, {
+                                      onSettled: () => setActionLoading(p => ({ ...p, [`complete-${entry.id}`]: false }))
+                                    })
+                                  }}
+                                  disabled={actionLoading[`complete-${entry.id}`]}
+                                  className="qf-btn-success"
+                                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                  title="Mark visit as complete"
+                                >
+                                  {actionLoading[`complete-${entry.id}`] ? '...' : '✅ Complete'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActionLoading(p => ({ ...p, [`skip-${entry.id}`]: true }))
+                                    skipPatientMutation.mutate(entry.id, {
+                                      onSettled: () => setActionLoading(p => ({ ...p, [`skip-${entry.id}`]: false }))
+                                    })
+                                  }}
+                                  disabled={actionLoading[`skip-${entry.id}`]}
+                                  className="qf-btn-secondary"
+                                  style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                  title="Skip to next patient"
+                                >
+                                  {actionLoading[`skip-${entry.id}`] ? '...' : '⏭️ Skip'}
+                                </button>
+                              </>
+                            )}
+                            {entry.status === 'in_progress' && (
+                              <button
+                                onClick={() => {
+                                  setActionLoading(p => ({ ...p, [`complete-${entry.id}`]: true }))
+                                  completePatientMutation.mutate(entry.id, {
+                                    onSettled: () => setActionLoading(p => ({ ...p, [`complete-${entry.id}`]: false }))
+                                  })
+                                }}
+                                disabled={actionLoading[`complete-${entry.id}`]}
+                                className="qf-btn-success"
+                                style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                                title="Mark visit as complete"
+                              >
+                                {actionLoading[`complete-${entry.id}`] ? '...' : '✅ Complete'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

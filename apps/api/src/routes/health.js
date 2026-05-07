@@ -1,6 +1,6 @@
 /**
  * Health check endpoint — reports system status
- * Monitors Redis, Supabase, Firebase push, and overall API health
+ * Monitors Redis, Supabase, Firebase push, Socket.io, and overall API health
  */
 
 const express = require('express');
@@ -18,7 +18,8 @@ router.get('/', async (req, res, next) => {
       checks: {
         supabase: { status: 'checking' },
         redis: { status: 'checking' },
-        push: { status: 'checking' }
+        push: { status: 'checking' },
+        socketio: { status: 'checking' }
       }
     };
 
@@ -76,6 +77,29 @@ router.get('/', async (req, res, next) => {
       }
     } catch (err) {
       health.checks.push = {
+        status: 'unhealthy',
+        message: err.message
+      };
+    }
+
+    // Check Socket.io
+    try {
+      const io = req.app?.get('io');
+      if (io) {
+        const clientCount = io.engine.clientsCount || 0;
+        health.checks.socketio = {
+          status: 'ok',
+          message: 'Socket.io initialized',
+          connectedClients: clientCount
+        };
+      } else {
+        health.checks.socketio = {
+          status: 'unhealthy',
+          message: 'Socket.io not initialized'
+        };
+      }
+    } catch (err) {
+      health.checks.socketio = {
         status: 'unhealthy',
         message: err.message
       };

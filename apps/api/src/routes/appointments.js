@@ -16,6 +16,7 @@ const {
   normalizeEmail,
   normalizePhone
 } = require('../utils/validation');
+const { validateBookingAvailability, getAvailableSlots } = require('../utils/bookingValidation');
 
 // ─── Helper: generate time slots ─────────────────────
 const generateSlots = (start, end, durationMins) => {
@@ -136,23 +137,33 @@ router.get('/slots', async (req, res) => {
       .eq('appointment_date', date)
       .in('status', ['confirmed', 'pending']);
 
-    const bookedTimes = new Set(booked?.map(b => b.slot_time?.slice(0, 5)) || []);
+    const bookedTimes = (booked || []).map(b => b.slot_time?.slice(0, 5)).filter(Boolean);
 
     const isSameDay = date === today;
-    const slots = allSlots
-      .filter(time => {
-        if (!isSameDay) return true;
-        const slotMinutes = slotToMinutes(time);
-        return slotMinutes !== null && slotMinutes >= currentMinutes;
-      })
-      .map(time => ({
+    const slots = isSameDay
+      ? allSlots.filter(time => {
+          const slotMinutes = slotToMinutes(time);
+          return slotMinutes !== null && slotMinutes >= currentMinutes;
+        })
+      : allSlots;
+
+    // Apply buffer time consideration for available slots
+    const availableSlots = getAvailableSlots(slots, bookedTimes, duration);
+
+    const slotData = availableSlots.map(time => ({
       time,
-      available: !bookedTimes.has(time),
+      available: true,
       consultationFee: settings?.consultation_fee || 300
-    }));
+    })).concat(
+      bookedTimes.map(time => ({
+        time,
+        available: false,
+        consultationFee: settings?.consultation_fee || 300
+      }))
+    ).sort((a, b) => a.time.localeCompare(b.time));
 
     res.json({
-      slots,
+      slots: slotData,
       duration,
       consultationFee: settings?.consultation_fee || 300
     });
@@ -271,6 +282,23 @@ router.post('/book', async (req, res) => {
     }
 
     // 2. Check slot availability after patient resolution.
+    // Validate booking using comprehensive conflict checking with buffer times
+    const validation = await validateBookingAvailability(
+      supabase,
+      doctorRecord.id,
+      patientId,
+      date,
+      slotTime,
+      settings?.slot_duration_mins || 20
+    );
+
+    if (!validation.isValid) {
+      return res.status(409).json({ 
+        error: validation.reason,
+        errorCode: validation.error
+      });
+    }
+
     // If the same patient retries the same booking, return the existing appointment instead of failing.
     const { data: existing, error: existingErr } = await supabase
       .from('appointments')
@@ -278,6 +306,7 @@ router.post('/book', async (req, res) => {
       .eq('doctor_id', doctorRecord.id)
       .eq('appointment_date', date)
       .eq('slot_time', slotTime)
+      .eq('patient_id', patientId)
       .in('status', ['confirmed', 'pending'])
       .maybeSingle();
 
