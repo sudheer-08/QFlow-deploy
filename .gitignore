@@ -42,3 +42,6 @@ npm-debug.log*
 
 # Docker
 *.env.docker
+
+
+context.md

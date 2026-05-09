@@ -281,7 +281,14 @@ router.post('/book', async (req, res) => {
       if (patientError) throw patientError;
     }
 
-    // 2. Check slot availability after patient resolution.
+    // 2. Fetch doctor's slot settings (duration/fee) and check slot availability.
+    // Fetch early to avoid referencing `settings` before initialization.
+    const { data: slotSettings } = await supabase
+      .from('doctor_slot_settings')
+      .select('consultation_fee, slot_duration_mins')
+      .eq('doctor_id', doctorRecord.id)
+      .maybeSingle();
+
     // Validate booking using comprehensive conflict checking with buffer times
     const validation = await validateBookingAvailability(
       supabase,
@@ -289,7 +296,7 @@ router.post('/book', async (req, res) => {
       patientId,
       date,
       slotTime,
-      settings?.slot_duration_mins || 20
+      slotSettings?.slot_duration_mins || 20
     );
 
     if (!validation.isValid) {
@@ -312,17 +319,11 @@ router.post('/book', async (req, res) => {
 
     if (existingErr) throw existingErr;
 
-    // 3. Get slot settings for fee (used by both existing and new appointment response).
-    const { data: settings } = await supabase
-      .from('doctor_slot_settings')
-      .select('consultation_fee')
-      .eq('doctor_id', doctorRecord.id)
-      .single();
-
+    // 3. Use previously fetched slot settings for fee (used by both existing and new appointment response).
     const clinicName = doctorRecord?.tenants?.name || 'the clinic';
     const clinicSubdomain = doctorRecord?.tenants?.subdomain || null;
     const doctorName = doctorRecord?.name || 'the doctor';
-    const consultationFee = settings?.consultation_fee || existing?.payment_amount || 300;
+    const consultationFee = slotSettings?.consultation_fee || existing?.payment_amount || 300;
 
     if (existing) {
       if (existing.patient_id === patientId) {
