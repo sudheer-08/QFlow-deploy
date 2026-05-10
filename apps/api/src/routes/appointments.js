@@ -17,6 +17,7 @@ const {
   normalizePhone
 } = require('../utils/validation');
 const { validateBookingAvailability, getAvailableSlots } = require('../utils/bookingValidation');
+import { updateDoctorStats } from './stats.js';
 
 // ─── Helper: generate time slots ─────────────────────
 const generateSlots = (start, end, durationMins) => {
@@ -696,6 +697,45 @@ router.patch('/:id/reschedule', authenticate, async (req, res) => {
     console.error('Reschedule error:', err);
     res.status(500).json({ error: 'Failed to reschedule' });
   }
+});
+
+// When a booking is marked as 'completed'
+// This could be in a route handler like PUT /api/bookings/:id/status
+// or triggered by a Supabase DB trigger/function.
+
+// Example: In a route handler
+router.put('/bookings/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  // ... logic to update booking status in DB ...
+  const { data: updatedBooking, error } = await supabase
+    .from('bookings')
+    .update({ status, ended_at: status === 'completed' ? new Date().toISOString() : null })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: 'Failed to update booking' });
+  }
+
+  // If the booking is completed, calculate duration and update stats
+  if (status === 'completed' && updatedBooking.started_at) {
+    const startedAt = new Date(updatedBooking.started_at);
+    const endedAt = new Date(updatedBooking.ended_at);
+    const actualDurationSeconds = (endedAt - startedAt) / 1000;
+
+    if (actualDurationSeconds > 0) {
+      await updateDoctorStats(
+        updatedBooking.doctor_id,
+        updatedBooking.visit_type,
+        actualDurationSeconds
+      );
+    }
+  }
+
+  res.json(updatedBooking);
 });
 
 module.exports = router;

@@ -544,3 +544,51 @@
     margin: 0 auto;
   }
 }
+
+/* Add styles for the new visit type selection step */
+.ba-visit-type-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.ba-visit-type-card {
+  background-color: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+}
+
+.ba-visit-type-card:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+}
+
+.ba-visit-type-card.is-active {
+  border-color: #6366f1;
+  background-color: #eef2ff;
+  box-shadow: 0 0 0 2px #6366f1;
+}
+
+.ba-visit-type-card strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ba-visit-type-card span {
+  display: block;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.ba-visit-type-card.is-active strong {
+  color: #4338ca;
+}

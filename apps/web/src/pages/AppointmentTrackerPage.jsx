@@ -34,16 +34,24 @@ export default function AppointmentTrackerPage() {
   )
 
   const statusConfig = {
-    confirmed: { bg: '#eff6ff', color: '#1d4ed8', icon: '✅', text: 'Confirmed' },
+    scheduled: { bg: '#eff6ff', color: '#1d4ed8', icon: '✅', text: 'Scheduled' },
+    checked_in: { bg: '#f0fdf4', color: '#15803d', icon: '🏥', text: 'Checked In' },
+    called: { bg: '#fefce8', color: '#ca8a04', icon: '📣', text: 'Your Turn!' },
+    in_progress: { bg: '#eef2ff', color: '#4338ca', icon: '👨‍⚕️', text: 'In Consultation' },
     completed: { bg: '#f0fdf4', color: '#15803d', icon: '🎉', text: 'Completed' },
+    no_show: { bg: '#fef2f2', color: '#dc2626', icon: '🤷', text: 'No Show' },
+    skipped: { bg: '#f3f4f6', color: '#6b7280', icon: '⏭️', text: 'Skipped' },
     cancelled: { bg: '#fef2f2', color: '#dc2626', icon: '❌', text: 'Cancelled' },
-    pending: { bg: '#fefce8', color: '#ca8a04', icon: '⏳', text: 'Pending' },
-  }
-  const statusInfo = statusConfig[appt.status] || statusConfig.confirmed
+  };
+  const statusInfo = statusConfig[appt.status] || statusConfig.scheduled;
 
-  const appointmentDate = new Date(appt.date).toLocaleDateString('en-IN', {
+  const appointmentDate = new Date(appt.slot_time).toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  })
+  });
+  
+  const estimatedTime = new Date(appt.eta).toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit'
+  });
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif' }}>
@@ -63,9 +71,12 @@ export default function AppointmentTrackerPage() {
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: statusInfo.color, margin: '0 0 2px' }}>{statusInfo.text}</p>
             <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
-              {appt.status === 'confirmed' ? 'Your appointment is confirmed' :
-               appt.status === 'completed' ? 'Consultation completed' :
-               appt.status === 'cancelled' ? 'This appointment was cancelled' : ''}
+              {appt.status === 'scheduled' ? `Your token is #${appt.token_number}. Estimated time is ~${estimatedTime}.` :
+               appt.status === 'checked_in' ? `You are in the queue. ${appt.tokens_ahead} patients are ahead of you.` :
+               appt.status === 'called' ? 'Please proceed to the doctor\'s room.' :
+               appt.status === 'in_progress' ? 'Consultation is currently ongoing.' :
+               appt.status === 'completed' ? 'Consultation finished.' :
+               'This appointment was cancelled or missed.'}
             </p>
           </div>
         </div>
@@ -76,12 +87,13 @@ export default function AppointmentTrackerPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
               ['📅 Date', appointmentDate],
-              ['⏰ Time', appt.time],
-              ['👨‍⚕️ Doctor', appt.doctorName],
-              ['👤 Patient', appt.patientName],
-              ['🏥 Clinic', appt.clinicName],
-              ['📍 Address', appt.clinicAddress],
-              ['📞 Clinic Phone', appt.clinicPhone],
+              ['⏰ Estimated Time', `~${estimatedTime}`],
+              ['#️⃣ Token', appt.token_number],
+              ['👨‍⚕️ Doctor', appt.doctor.name],
+              ['👤 Patient', appt.patient.name],
+              ['🏥 Clinic', appt.clinic.name],
+              ['📍 Address', appt.clinic.address],
+              ['📞 Clinic Phone', appt.clinic.phone],
             ].filter(([_, v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 10, borderBottom: '1px solid #f8fafc' }}>
                 <span style={{ fontSize: 13, color: '#64748b', minWidth: 120 }}>{label}</span>
@@ -90,7 +102,7 @@ export default function AppointmentTrackerPage() {
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>💰 Consultation Fee</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#2563eb' }}>₹{appt.consultationFee}</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: '#2563eb' }}>₹{appt.doctor.consultation_fee}</span>
             </div>
           </div>
         </div>

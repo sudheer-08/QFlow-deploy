@@ -9,6 +9,7 @@ import {
   ExternalLink, LogOut, Wifi, WifiOff, RefreshCw,
   TrendingUp, DollarSign, ArrowRight, Calendar
 } from 'lucide-react'
+import ProblemPatientManager from '../components/admin/ProblemPatientManager'
 
 export default function AdminPage() {
   const { user, logout } = useAuthStore()
@@ -26,8 +27,16 @@ export default function AdminPage() {
   } = useQuery({
     queryKey: ['summary-today'],
     queryFn: () => api.get('/dashboard-metrics/summary/today').then(r => r.data),
-    refetchInterval: 30000
+    refetchInterval: 10000 // Increased refresh rate
   })
+
+  const {
+    data: problemBookings = [],
+  } = useQuery({
+    queryKey: ['problem-bookings'],
+    queryFn: () => api.get('/bookings?status=in.no_show,skipped').then(r => r.data),
+    refetchInterval: 15000,
+  });
 
   const {
     data: waitTrends = [],
@@ -135,6 +144,9 @@ export default function AdminPage() {
       </header>
 
       <div className="qf-staff-body" style={{ display: 'grid', gap: 20 }}>
+
+        {/* ─── Problem Patients ─── */}
+        <ProblemPatientManager bookings={problemBookings} />
 
         {/* ─── Stats ─── */}
         <section>

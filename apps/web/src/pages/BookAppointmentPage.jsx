@@ -54,6 +54,14 @@ const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   }
 }
 
+const VISIT_TYPES = [
+  { key: 'new', label: 'First visit / New problem', description: 'For new patients or a new health concern.' },
+  { key: 'followup', label: 'Follow-up visit', description: 'For reviewing progress on a previous issue.' },
+  { key: 'prescription', label: 'Prescription renewal only', description: 'A quick visit just to renew medication.' },
+  { key: 'report_review', label: 'Review my test results', description: 'To discuss recent lab or imaging results.' },
+  { key: 'procedure', label: 'A procedure or treatment', description: 'For planned treatments like dressings, etc.' },
+];
+
 export default function BookAppointmentPage() {
   const { subdomain } = useParams()
   const [searchParams] = useSearchParams()
@@ -67,8 +75,9 @@ export default function BookAppointmentPage() {
   const isReschedule = !!rescheduleId
   const accessToken = useAuthStore(state => state.accessToken)
 
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0) // Start at step 0 for visit type
   const [selected, setSelected] = useState({
+    visitType: '', // new, followup, etc.
     doctorId: '',
     doctorName: '',
     date: new Date().toISOString().split('T')[0],
@@ -76,7 +85,7 @@ export default function BookAppointmentPage() {
     fee: 0
   })
   const [form, setForm] = useState({
-    patientName: '', phone: '', email: '', symptoms: '', visitType: 'first_visit'
+    patientName: '', phone: '', email: '', symptoms: ''
   })
   const [formError, setFormError] = useState('')
   const [booking, setBooking] = useState(null)
@@ -188,13 +197,27 @@ export default function BookAppointmentPage() {
     }
   }, [clinic, selected.doctorName, selectedDoctorIdIsValid])
 
+  const { data: durationStats } = useQuery({
+    queryKey: ['durationStats', resolvedDoctorId, selected.visitType],
+    queryFn: () => 
+      fetch(`${import.meta.env.VITE_API_URL}/doctors/${resolvedDoctorId}/durations?visitType=${selected.visitType}`)
+      .then(r => r.json()),
+    enabled: !!resolvedDoctorId && !!selected.visitType && step === 1,
+  });
+
+  // ... existing useEffects ...
+
   useEffect(() => {
-    if (step >= 2 && !selectedDoctorIdIsValid) {
-      setStep(1)
-      setSelected(prev => ({ ...prev, slot: '' }))
-      toast.error('Please select a doctor before choosing a time slot.')
+    if (step >= 1 && !selected.visitType) {
+      setStep(0);
+      toast.error('Please select a visit type first.');
     }
-  }, [step, selectedDoctorIdIsValid, toast])
+    if (step >= 2 && !selectedDoctorIdIsValid) {
+      setStep(1);
+      setSelected(prev => ({ ...prev, slot: '' }));
+      toast.error('Please select a doctor before choosing a time slot.');
+    }
+  }, [step, selected.visitType, selectedDoctorIdIsValid, toast]);
 
   useEffect(() => {
     if (user && user.role === 'patient') {
@@ -339,15 +362,16 @@ export default function BookAppointmentPage() {
               ['Clinic', booking.clinicName],
               ['Doctor', booking.doctorName],
               ['Date', new Date(booking.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })],
-              ['Time', booking.slotTime],
-              ['Fee', `₹${booking.consultationFee}`]
-            ].map(([label, value]) => (
-              <div key={label} className="ba-summary-row">
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </div>
-            ))}
+['Time', `~${booking.estimatedTime}`], // Show ETA
+          ['Fee', `₹${booking.consultationFee}`]
+        ].map(([label, value]) => (
+          <div key={label} className="ba-summary-row">
+            <span>{label}</span>
+            <strong>{value}</strong>
           </div>
+        ))}
+      </div>
+      <div className="ba-note">Your appointment time is an estimate. Please track the live queue for updates.</div>
 
           <button className="ba-success-primary" onClick={() => navigate(`/track-appointment/${booking.trackerToken}`)}>
             Track My Appointment
@@ -359,6 +383,28 @@ export default function BookAppointmentPage() {
       </div>
     )
   }
+
+  const renderStepZero = () => (
+    <section className="ba-step-card">
+      <div className="ba-step-head">
+        <h2>What is the reason for your visit?</h2>
+        <p>This helps us estimate your consultation time accurately.</p>
+      </div>
+      <div className="ba-visit-type-grid">
+        {VISIT_TYPES.map(vt => (
+          <button
+            key={vt.key}
+            type="button"
+            className={`ba-visit-type-card ${selected.visitType === vt.key ? 'is-active' : ''}`}
+            onClick={() => setSelected(prev => ({ ...prev, visitType: vt.key }))
+          >
+            <strong>{vt.label}</strong>
+            <span>{vt.description}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
 
   const renderStepOne = () => (
     <section className="ba-step-card">
@@ -587,10 +633,10 @@ export default function BookAppointmentPage() {
           )}
         </div>
         <div className="ba-progress">
-          {[1, 2, isReschedule ? 4 : 3, 4].map((stepNum, idx) => {
+          {[0, 1, 2, isReschedule ? 4 : 3, 4].map((stepNum, idx) => {
             const displayNum = idx + 1
             const isOn = isReschedule 
-              ? (stepNum === 1 && step >= 1) || (stepNum === 2 && step >= 2) || (stepNum === 4 && step >= 4)
+              ? (stepNum === 0 && step >= 0) || (stepNum === 1 && step >= 1) || (stepNum === 2 && step >= 2) || (stepNum === 4 && step >= 4)
               : step >= stepNum
             return <span key={stepNum} className={isOn ? 'is-on' : ''} />
           })}
@@ -603,6 +649,7 @@ export default function BookAppointmentPage() {
             <div className="ba-error">{rescheduleError}</div>
           </section>
         )}
+        {!rescheduleError && step === 0 && renderStepZero()}
         {!rescheduleError && step === 1 && renderStepOne()}
         {!rescheduleError && step === 2 && renderStepTwo()}
         {!rescheduleError && step === 3 && !isReschedule && renderStepThree()}
@@ -610,6 +657,16 @@ export default function BookAppointmentPage() {
       </main>
 
       <footer className="ba-footer">
+        {step === 0 && (
+          <button
+            className={`ba-cta ${selected.visitType ? '' : 'is-disabled'}`}
+            onClick={() => selected.visitType && setStep(1)}
+            disabled={!selected.visitType}
+          >
+            Next • Choose Doctor & Date
+          </button>
+        )}
+
         {step === 1 && (
           <button
             className={`ba-cta ${selectedDoctorIdIsValid ? '' : 'is-disabled'}`}
@@ -679,11 +736,11 @@ export default function BookAppointmentPage() {
                   doctorId: resolvedDoctorId,
                   date: selected.date,
                   slotTime: selected.slot,
+                  visitType: selected.visitType, // Pass visitType
                   patientName: form.patientName.trim(),
                   phone: normalizePhone(form.phone),
                   email: form.email ? normalizeEmail(form.email) : '',
                   symptoms: form.symptoms,
-                  visitType: form.visitType,
                   patientId: user?.id || null
                 })
               }

@@ -78,22 +78,54 @@ export default function DoctorPage() {
   })
 
   const skipMutation = useMutation({
-    mutationFn: (entryId) => api.patch(`/queue/${entryId}/skip`),
+    mutationFn: (bookingId) => fetch('/api/functions/skipToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}` },
+      body: JSON.stringify({ bookingId }),
+    }).then(res => {
+      if (!res.ok) throw new Error('Failed to skip');
+      return res.json();
+    }),
     onSuccess: () => {
-      setCurrentPatient(null)
-      queryClient.invalidateQueries(['doctor-queue'])
+      toast.success('Patient skipped, next in line called.');
+      setCurrentPatient(null);
+      queryClient.invalidateQueries({ queryKey: ['doctor-queue'] });
+    },
+    onError: () => {
+      toast.error('Could not skip the patient.');
     }
-  })
+  });
+
+  const rejoinMutation = useMutation({
+    mutationFn: (bookingId) => fetch('/api/functions/rejoinQueue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}` },
+        body: JSON.stringify({ bookingId }),
+    }).then(res => {
+        if (!res.ok) throw new Error('Failed to rejoin');
+        return res.json();
+    }),
+    onSuccess: (data) => {
+        toast.success(`Patient rejoined the queue at position ${data.newPosition}.`);
+        queryClient.invalidateQueries({ queryKey: ['doctor-queue'] });
+    },
+    onError: () => {
+        toast.error('Failed to rejoin the queue.');
+    }
+  });
 
   useEffect(() => {
     connectClinic(user.tenantId, user.id, user.role)
     socket.on('queue:patient_added', () => queryClient.invalidateQueries({ queryKey: ['doctor-queue'] }))
     socket.on('patient:arrived', () => queryClient.invalidateQueries({ queryKey: ['doctor-queue'] }))
     socket.on('appointment:new', () => queryClient.invalidateQueries({ queryKey: ['clinic-appointments'] }))
+    // Listen for status updates from other clients
+    socket.on('booking:status_update', () => queryClient.invalidateQueries({ queryKey: ['doctor-queue'] }));
     return () => {
       socket.off('queue:patient_added')
       socket.off('patient:arrived')
       socket.off('appointment:new')
+      socket.off('booking:status_update');
     }
   }, [])
 
@@ -221,7 +253,7 @@ export default function DoctorPage() {
                       disabled={skipMutation.isPending}
                       className="dr-btn-ghost-white"
                     >
-                      <SkipForward size={13} /> Skip
+                      <SkipForward size={13} /> {skipMutation.isPending ? 'Skipping...' : 'Skip'}
                     </button>
                     <button
                       onClick={() => window.location.href = `/doctor/prescription?patient=${currentPatient.patient_id}&name=${encodeURIComponent(currentPatient.users?.name)}&entry=${currentPatient.id}`}
