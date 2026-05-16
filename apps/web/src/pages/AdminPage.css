@@ -1,0 +1,165 @@
+/* AdminPage.css */
+
+.admin-page {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.admin-header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #343a40;
+}
+
+.admin-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    color: #495057;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-logout-btn:hover {
+    background: #e9ecef;
+}
+
+.admin-main-content {
+    padding: 2rem;
+}
+
+.admin-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.admin-stat-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+}
+
+.admin-stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.admin-stat-icon {
+    background-color: #e7f5ff;
+    color: #3498db;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-stat-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.admin-stat-info .admin-stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.admin-stat-info .admin-stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #343a40;
+}
+
+.admin-grid-cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.admin-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.admin-card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: #343a40;
+}
+
+.doctor-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.doctor-status-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.status-dot.online { background-color: #28a745; }
+.status-dot.offline { background-color: #6c757d; }
+
+.doctor-name {
+    font-weight: 500;
+}
+
+.doctor-queue-count {
+    font-size: 0.9rem;
+    color: #495057;
+    background-color: #e9ecef;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.doctor-consulting-with {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.chart-tooltip {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
