@@ -1,0 +1,72 @@
+/* AdvancedAnalyticsPage.css */
+.analytics-page {
+    padding: 2rem;
+    background-color: #f4f7f9;
+}
+
+.analytics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.analytics-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.date-range-selector select {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 1rem;
+}
+
+.loading-state {
+    text-align: center;
+    font-size: 1.2rem;
+    padding: 4rem;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+}
+
+.analytics-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.analytics-card.tall {
+    grid-row: span 2;
+}
+
+.analytics-card h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+.performance-table {
+    width: 100%;
+    margin-top: 1.5rem;
+    border-collapse: collapse;
+}
+
+.performance-table th,
+.performance-table td {
+    text-align: left;
+    padding: 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.performance-table th {
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-transform: uppercase;
+}
