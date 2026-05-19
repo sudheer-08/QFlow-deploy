@@ -1,0 +1,114 @@
+.tracker-shell {
+    min-height: 100vh;
+    background-color: #f8fafc;
+    font-family: 'Inter', sans-serif;
+}
+
+.tracker-header {
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    color: white;
+    padding: 2rem 1rem;
+    text-align: center;
+}
+
+.tracker-header h1 {
+    font-weight: 800;
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.tracker-header p {
+    opacity: 0.8;
+    margin-top: 0.25rem;
+}
+
+.tracker-body {
+    padding: 1rem;
+}
+
+.tracker-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+}
+
+.tracker-status-banner.status-blue { background-color: #dbeafe; color: #1e40af; }
+.tracker-status-banner.status-orange { background-color: #ffedd5; color: #9a3412; }
+.tracker-status-banner.status-green { background-color: #dcfce7; color: #166534; }
+.tracker-status-banner.status-purple { background-color: #e9d5ff; color: #581c87; }
+.tracker-status-banner.status-gray { background-color: #f3f4f6; color: #4b5563; }
+.tracker-status-banner.status-red { background-color: #fee2e2; color: #991b1b; }
+
+.tracker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.tracker-card {
+    background-color: white;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+}
+
+.tracker-card.main {
+    grid-column: 1 / -1;
+}
+
+.tracker-card-icon {
+    margin: 0 auto 0.5rem;
+    color: #64748b;
+}
+
+.tracker-card-label {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.tracker-card-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 0.25rem;
+}
+
+.tracker-card-value.large {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.tracker-card-value.token {
+    font-family: 'Sora', sans-serif;
+    color: #3b82f6;
+}
+
+.tracker-card-subtext {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 0.25rem;
+}
+
+.tracker-footer {
+    text-align: center;
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.tracker-loading, .tracker-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-size: 1.2rem;
+    color: #64748b;
+}
