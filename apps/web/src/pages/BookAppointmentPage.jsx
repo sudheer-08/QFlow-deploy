@@ -85,7 +85,10 @@ export default function BookAppointmentPage() {
     fee: 0
   })
   const [form, setForm] = useState({
-    patientName: '', phone: '', email: '', symptoms: ''
+    patientName: '', phone: '', email: '', symptoms: '',
+    bookingFor: 'self', // 'self' or 'other'
+    familyName: '',
+    familyRelation: ''
   })
   const [formError, setFormError] = useState('')
   const [booking, setBooking] = useState(null)
@@ -96,13 +99,16 @@ export default function BookAppointmentPage() {
   const resolvedSubdomain = safeSubdomain || oldAppointment?.tenants?.subdomain || ''
 
   const validateDetailsStep = () => {
-    const cleanName = form.patientName.trim()
-    const cleanPhone = normalizePhone(form.phone)
-    const cleanEmail = form.email ? normalizeEmail(form.email) : ''
+    const isBookingForOther = form.bookingFor === 'other';
+    const patientName = isBookingForOther ? form.familyName : form.patientName;
+    const cleanName = patientName.trim();
+    const cleanPhone = normalizePhone(form.phone);
+    const cleanEmail = form.email ? normalizeEmail(form.email) : '';
 
-    if (!isNonEmptyString(cleanName, 100)) return 'Please enter your full name.'
-    if (!isPhone(cleanPhone)) return 'Please enter a valid phone number.'
-    if (form.email && !isEmail(cleanEmail)) return 'Please enter a valid email address.'
+    if (!isNonEmptyString(cleanName, 100)) return `Please enter the patient's full name.`;
+    if (isBookingForOther && !isNonEmptyString(form.familyRelation, 50)) return `Please specify the relationship to the patient.`;
+    if (!isPhone(cleanPhone)) return 'Please enter a valid contact phone number.';
+    if (form.email && !isEmail(cleanEmail)) return 'Please enter a valid email address.';
     return ''
   }
 
@@ -283,28 +289,31 @@ export default function BookAppointmentPage() {
   }, [slotsUpdatedAt])
 
   const bookMutation = useMutation({
-    mutationFn: (data) => {
-      if (isReschedule && rescheduleId) {
-        // Reschedule endpoint: PATCH /api/appointments/:id/reschedule
-        return fetchJsonWithTimeout(`${import.meta.env.VITE_API_URL}/appointments/${rescheduleId}/reschedule`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({
-            date: data.date,
-            slotTime: data.slotTime
-          })
-        })
-      } else {
-        // New booking endpoint: POST /api/appointments/book
-        return fetchJsonWithTimeout(`${import.meta.env.VITE_API_URL}/appointments/book`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        })
+    mutationFn: async () => {
+      const clinicId = clinic?.id
+      const doctorId = resolvedDoctorId
+      const selectedSlot = null
+      const bookingData = {
+        clinic_id: clinicId,
+        doctor_id: doctorId,
+        appointment_time: new Date(selected.date).toISOString(),
+        patient_name: form.bookingFor === 'other' ? form.familyName : form.patientName,
+        patient_phone: normalizePhone(form.phone),
+        patient_email: form.email ? normalizeEmail(form.email) : null,
+        symptoms: form.symptoms,
+        visit_type: form.visitType,
+        booked_by_patient_id: user?.id,
+        booking_for: form.bookingFor,
+        family_member_name: form.bookingFor === 'other' ? form.familyName : null,
+        family_member_relation: form.bookingFor === 'other' ? form.familyRelation : null
       }
+
+      const { data, error } = await supabase
+        .post('/api/appointments/book', bookingData, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+
+      return data
     },
     onSuccess: (data) => {
       if (data.error) {
@@ -373,7 +382,7 @@ export default function BookAppointmentPage() {
       </div>
       <div className="ba-note">Your appointment time is an estimate. Please track the live queue for updates.</div>
 
-          <button className="ba-success-primary" onClick={() => navigate(`/track-appointment/${booking.trackerToken}`)}>
+          <button className="ba-success-primary" onClick={() => navigate(`/track/${booking.appointmentId}`)}>
             Track My Appointment
           </button>
           <button className="ba-success-secondary" onClick={() => navigate('/')}>
@@ -396,7 +405,7 @@ export default function BookAppointmentPage() {
             key={vt.key}
             type="button"
             className={`ba-visit-type-card ${selected.visitType === vt.key ? 'is-active' : ''}`}
-            onClick={() => setSelected(prev => ({ ...prev, visitType: vt.key }))
+            onClick={() => setSelected(prev => ({ ...prev, visitType: vt.key }))}
           >
             <strong>{vt.label}</strong>
             <span>{vt.description}</span>
@@ -471,77 +480,94 @@ export default function BookAppointmentPage() {
     </section>
   )
 
-  const renderSlotGrid = (title, slots) => (
-    <div className="ba-slot-block">
-      <p className="ba-label">{title}</p>
-      <div className="ba-slot-grid">
-        {slots.map(slot => (
-          <button
-            key={slot.time}
-            type="button"
-            disabled={!slot.available}
-            className={`ba-slot ${selected.slot === slot.time ? 'is-active' : ''} ${!slot.available ? 'is-disabled' : ''}`}
-            onClick={() => slot.available && setSelected(prev => ({ ...prev, slot: slot.time, fee: slot.consultationFee }))}
-          >
-            {slot.time}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+  
 
-  const renderStepTwo = () => (
-    <section className="ba-step-card">
-      <div className="ba-step-head">
-        <h2>Pick a Time Slot</h2>
-        <p>{selected.doctorName} • {new Date(selected.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-      </div>
-
-      {loadingSlots && <div className="ba-empty">Loading available slots...</div>}
-      {!loadingSlots && slotsData?.error && <div className="ba-error">{slotsData.error}</div>}
-      {!loadingSlots && !slotsData?.error && morningSlots.length === 0 && eveningSlots.length === 0 && (
-        <div className="ba-empty">
-          No slots available for this date.
-          <button className="ba-inline-btn" onClick={() => setStep(1)}>Change Date</button>
-        </div>
-      )}
-      {!loadingSlots && !slotsData?.error && (
-        <>
-          {morningSlots.length > 0 && renderSlotGrid('Morning', morningSlots)}
-          {eveningSlots.length > 0 && renderSlotGrid('Evening', eveningSlots)}
-        </>
-      )}
-    </section>
-  )
+  
 
   const renderStepThree = () => (
     <section className="ba-step-card">
       <div className="ba-step-head">
         <h2>Your Details</h2>
-        <p>We will use these for confirmation messages.</p>
+        <p>This information will be used for the appointment.</p>
       </div>
 
       {formError && <div className="ba-error">{formError}</div>}
-      {user?.role === 'patient' && (
+      
+      <div className="ba-label">Who is this appointment for?</div>
+      <div className="ba-radio-group">
+        <button
+          className={`ba-radio-btn ${form.bookingFor === 'self' ? 'is-active' : ''}`}
+          onClick={() => setForm(prev => ({ ...prev, bookingFor: 'self' }))}
+        >
+          Myself
+        </button>
+        <button
+          className={`ba-radio-btn ${form.bookingFor === 'other' ? 'is-active' : ''}`}
+          onClick={() => setForm(prev => ({ ...prev, bookingFor: 'other' }))}
+        >
+          Someone Else
+        </button>
+      </div>
+
+      {form.bookingFor === 'self' && user?.role === 'patient' && (
         <div className="ba-ok">Logged in as <strong>{user.name}</strong>. Details auto-filled.</div>
       )}
 
       <div className="ba-form-grid">
-        {[
-          { key: 'patientName', label: 'Full Name *', type: 'text', placeholder: 'Your full name' },
-          { key: 'phone', label: 'WhatsApp Number *', type: 'tel', placeholder: '+91 98765 43210' },
-          { key: 'email', label: 'Email', type: 'email', placeholder: 'you@email.com' }
-        ].map(field => (
-          <label key={field.key} className="ba-field">
-            <span>{field.label}</span>
+        {form.bookingFor === 'other' && (
+          <>
+            <label className="ba-field">
+              <span>Patient's Full Name *</span>
+              <input
+                value={form.familyName}
+                onChange={e => setForm({ ...form, familyName: e.target.value })}
+                type="text"
+                placeholder="e.g. John Doe"
+              />
+            </label>
+            <label className="ba-field">
+              <span>Relationship to You *</span>
+              <input
+                value={form.familyRelation}
+                onChange={e => setForm({ ...form, familyRelation: e.target.value })}
+                type="text"
+                placeholder="e.g. Spouse, Child, Parent"
+              />
+            </label>
+          </>
+        )}
+
+        {form.bookingFor === 'self' && (
+          <label className="ba-field">
+            <span>Your Full Name *</span>
             <input
-              value={form[field.key]}
-              onChange={e => setForm({ ...form, [field.key]: e.target.value })}
-              type={field.type}
-              placeholder={field.placeholder}
+              value={form.patientName}
+              onChange={e => setForm({ ...form, patientName: e.target.value })}
+              type="text"
+              placeholder="Your full name"
             />
           </label>
-        ))}
+        )}
+
+        <label className="ba-field">
+          <span>Contact WhatsApp Number *</span>
+          <input
+            value={form.phone}
+            onChange={e => setForm({ ...form, phone: e.target.value })}
+            type="tel"
+            placeholder="+91 98765 43210"
+          />
+        </label>
+        
+        <label className="ba-field">
+          <span>Contact Email</span>
+          <input
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+            type="email"
+            placeholder="you@email.com"
+          />
+        </label>
 
         <label className="ba-field">
           <span>Symptoms / Reason for Visit</span>
@@ -553,22 +579,6 @@ export default function BookAppointmentPage() {
             placeholder="e.g. Toothache, cavity, cleaning..."
           />
         </label>
-
-        <div className="ba-visit-row">
-          {[
-            ['first_visit', 'First Visit'],
-            ['follow_up', 'Follow Up']
-          ].map(([val, label]) => (
-            <button
-              key={val}
-              type="button"
-              className={`ba-visit ${form.visitType === val ? 'is-active' : ''}`}
-              onClick={() => setForm({ ...form, visitType: val })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
     </section>
   )
@@ -585,7 +595,7 @@ export default function BookAppointmentPage() {
           ['Clinic', isReschedule ? oldAppointment?.tenants?.name : clinic?.name],
           ['Doctor', selected.doctorName],
           ['Date', new Date(selected.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })],
-          ['Time', selected.slot],
+          ['Time', 'Will be assigned automatically'],
           ...(isReschedule ? [] : [['Patient', form.patientName]]),
           ...(isReschedule ? [] : [['WhatsApp', form.phone]])
         ].map(([label, value]) => (
@@ -651,7 +661,7 @@ export default function BookAppointmentPage() {
         )}
         {!rescheduleError && step === 0 && renderStepZero()}
         {!rescheduleError && step === 1 && renderStepOne()}
-        {!rescheduleError && step === 2 && renderStepTwo()}
+        
         {!rescheduleError && step === 3 && !isReschedule && renderStepThree()}
         {!rescheduleError && step === 4 && renderStepFour()}
       </main>
@@ -675,7 +685,7 @@ export default function BookAppointmentPage() {
                 if (!hasValidDoctorId(selected.doctorId) && hasValidDoctorId(resolvedDoctorId)) {
                   setSelected(prev => ({ ...prev, doctorId: resolvedDoctorId }))
                 }
-                setStep(2)
+                setStep(3)
               }}
             disabled={!selectedDoctorIdIsValid}
           >
@@ -683,59 +693,14 @@ export default function BookAppointmentPage() {
           </button>
         )}
 
-        {step === 2 && (
-          <button
-            className={`ba-cta ${selected.slot ? '' : 'is-disabled'}`}
-            onClick={() => selected.slot && setStep(isReschedule ? 4 : 3)}
-            disabled={!selected.slot}
-          >
-            {selected.slot ? `Continue with ${selected.slot}` : 'Select a time slot'}
-          </button>
-        )}
-
-        {step === 3 && !isReschedule && (
-          <button
-            className="ba-cta"
-            onClick={() => {
-              const err = validateDetailsStep()
-              if (err) {
-                setFormError(err)
-                toast.error(err)
-                return
-              }
-              setFormError('')
-              setStep(4)
-            }}
-          >
-            Review Appointment
-          </button>
-        )}
-
-        {step === 4 && (
-          <button
-            className="ba-cta ba-cta-confirm"
-            onClick={() => {
-              if (!isReschedule) {
-                const err = validateDetailsStep()
-                if (err) {
-                  toast.error(err)
-                  return
-                }
-              }
-
-              if (isReschedule) {
-                // Reschedule: only date and slotTime
-                bookMutation.mutate({
-                  date: selected.date,
-                  slotTime: selected.slot
-                })
+        
               } else {
                 // New booking: full details
                 bookMutation.mutate({
                   tenantId: clinic?.id,
                   doctorId: resolvedDoctorId,
                   date: selected.date,
-                  slotTime: selected.slot,
+                  slotTime: null,
                   visitType: selected.visitType, // Pass visitType
                   patientName: form.patientName.trim(),
                   phone: normalizePhone(form.phone),
@@ -754,3 +719,4 @@ export default function BookAppointmentPage() {
     </div>
   )
 }
+

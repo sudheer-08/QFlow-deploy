@@ -1,189 +1,114 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import { useToast } from '../components/Toast';
+import { supabase } from '../services/supabase';;
 import './PinLoginPage.css';
 
-const ROLE_REDIRECTS = {
-  receptionist: '/reception',
-  doctor: '/doctor',
-  clinic_admin: '/admin'
+const PinLoginPage = () => {
+    const [pin, setPin] = useState('');
+    const [error, setError] = useState('');
+    const navigate = useNavigate();
+    const { login } = useAuthStore.getState();
+    const queryClient = useQueryClient();
+
+    const handlePinClick = (num) => {
+        if (pin.length < 4) {
+            setPin(pin + num);
+        }
+    };
+
+    const handleBackspace = () => {
+        setPin(pin.slice(0, -1));
+    };
+
+    const handleClear = () => {
+        setPin('');
+        setError('');
+    };
+
+    const pinLoginMutation = useMutation({
+        mutationFn: async (enteredPin) => {
+            const { data, error } = await supabase.rpc('verify_staff_pin', { staff_pin: enteredPin });
+            if (error) throw new Error(error.message);
+            if (!data) throw new Error('Invalid PIN or user not found.');
+            return data;
+        },
+        onSuccess: (userData) => {
+            // The user data from the RPC call includes the full user object and a new JWT
+            login(userData.user_data, userData.token);
+            
+            // Invalidate all queries to refetch data with new auth context
+            queryClient.invalidateQueries();
+
+            if (userData.user_data.role === 'doctor') {
+                navigate('/doctor');
+            } else if (userData.user_data.role === 'admin') {
+                navigate('/admin');
+            } else {
+                // Fallback for other staff roles if any
+                navigate('/reception');
+            }
+        },
+        onError: (err) => {
+            setError('Invalid PIN. Please try again.');
+            setPin('');
+        },
+    });
+
+    const handleSubmit = () => {
+        if (pin.length === 4) {
+            setError('');
+            pinLoginMutation.mutate(pin);
+        } else {
+            setError('PIN must be 4 digits.');
+        }
+    };
+    
+    // Automatically submit when 4 digits are entered
+    React.useEffect(() => {
+        if (pin.length === 4) {
+            handleSubmit();
+        }
+    }, [pin]);
+
+    return (
+        <div className="pin-login-page">
+            <div className="pin-login-container">
+                <div className="pin-login-header">
+                    <h2>Staff PIN Login</h2>
+                    <p>Enter your 4-digit PIN to access your dashboard.</p>
+                </div>
+
+                <div className="pin-display">
+                    {Array(4).fill(0).map((_, i) => (
+                        <div key={i} className={`pin-dot ${pin.length > i ? 'filled' : ''}`}></div>
+                    ))}
+                </div>
+
+                {error && <div className="pin-error">{error}</div>}
+
+                <div className="numpad">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                        <button key={num} className="numpad-btn" onClick={() => handlePinClick(num.toString())}>
+                            {num}
+                        </button>
+                    ))}
+                    <button className="numpad-btn" onClick={handleClear}>C</button>
+                    <button className="numpad-btn" onClick={() => handlePinClick('0')}>0</button>
+                    <button className="numpad-btn" onClick={handleBackspace}>&larr;</button>
+                </div>
+
+                <button 
+                    className="submit-pin-btn" 
+                    onClick={handleSubmit}
+                    disabled={pin.length !== 4 || pinLoginMutation.isPending}
+                >
+                    {pinLoginMutation.isPending ? 'Verifying...' : 'Login'}
+                </button>
+            </div>
+        </div>
+    );
 };
 
-export default function PinLoginPage() {
-  const navigate = useNavigate();
-  const { login } = useAuthStore();
-  const toast = useToast();
-  const [pin, setPin] = useState(['', '', '', '']);
-  const [tenantId, setTenantId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState('tenant'); // tenant | pin
-
-  const handlePinInput = (val, idx) => {
-    if (!/^\d?$/.test(val)) return;
-    const newPin = [...pin];
-    newPin[idx] = val;
-    setPin(newPin);
-
-    // Auto-focus next
-    if (val && idx < 3) {
-      document.getElementById(`pin-${idx + 1}`)?.focus();
-    }
-
-    // Auto-submit when all 4 digits filled
-    if (idx === 3 && val) {
-      const fullPin = [...newPin.slice(0, 3), val].join('');
-      if (fullPin.length === 4) handleLogin(fullPin);
-    }
-  };
-
-  const handleKeyDown = (e, idx) => {
-    if (e.key === 'Backspace' && !pin[idx] && idx > 0) {
-      document.getElementById(`pin-${idx - 1}`)?.focus();
-    }
-  };
-
-  const handleLogin = async (fullPin) => {
-    if (!tenantId) return toast.error('Please enter clinic ID first');
-    setLoading(true);
-    try {
-      const res = await api.post('/pin/login', {
-        pin: fullPin,
-        tenant_id: tenantId
-      });
-
-      await login(res.data.user, res.data.token);
-
-      const redirect = ROLE_REDIRECTS[res.data.user.role] || '/reception';
-      navigate(redirect, { replace: true });
-      toast.success(`Welcome, ${res.data.user.name}!`);
-    } catch {
-      toast.error('Invalid PIN. Try again.');
-      setPin(['', '', '', '']);
-      document.getElementById('pin-0')?.focus();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="pin-shell">
-      <div className="pin-orb pin-orb-left" />
-      <div className="pin-orb pin-orb-right" />
-
-      <div className="pin-card">
-        <div className="pin-brand">
-          <div className="pin-logo">Q</div>
-          <h1>QFlow PIN Access</h1>
-          <p>Fast login for reception and clinic staff.</p>
-        </div>
-
-        {step === 'tenant' && (
-          <div className="pin-step">
-            <label className="pin-field">
-              <span>Clinic ID</span>
-              <input
-                value={tenantId}
-                onChange={e => setTenantId(e.target.value)}
-                placeholder="Enter your clinic ID"
-                autoComplete="organization"
-              />
-            </label>
-
-            <button
-              type="button"
-              className="pin-submit"
-              onClick={() => {
-                if (!tenantId.trim()) return toast.error('Enter clinic ID');
-                setStep('pin');
-                setTimeout(() => document.getElementById('pin-0')?.focus(), 100);
-              }}
-            >
-              Continue
-            </button>
-
-            <div className="pin-links">
-              <button type="button" onClick={() => navigate('/login', { replace: true })}>
-                Use email and password
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'pin' && (
-          <div className="pin-step">
-            <div className="pin-head-row">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('tenant');
-                  setPin(['', '', '', '']);
-                }}
-              >
-                Back
-              </button>
-              <p>{tenantId}</p>
-            </div>
-
-            <p className="pin-helper">Enter your 4-digit staff PIN</p>
-
-            <div className="pin-inputs">
-              {pin.map((digit, idx) => (
-                <input
-                  key={idx}
-                  id={`pin-${idx}`}
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={e => handlePinInput(e.target.value, idx)}
-                  onKeyDown={e => handleKeyDown(e, idx)}
-                  className={digit ? 'is-filled' : ''}
-                />
-              ))}
-            </div>
-
-            <div className="pin-pad">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'DEL'].map((num, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => {
-                    if (num === 'DEL') {
-                      const lastFilled = [...pin].reverse().findIndex(d => d !== '');
-                      if (lastFilled !== -1) {
-                        const idx = 3 - lastFilled;
-                        const newPin = [...pin];
-                        newPin[idx] = '';
-                        setPin(newPin);
-                        document.getElementById(`pin-${idx}`)?.focus();
-                      }
-                    } else if (num !== '') {
-                      const firstEmpty = pin.findIndex(d => d === '');
-                      if (firstEmpty !== -1) {
-                        handlePinInput(String(num), firstEmpty);
-                      }
-                    }
-                  }}
-                  disabled={num === '' || loading}
-                  className={num === '' ? 'is-gap' : num === 'DEL' ? 'is-delete' : ''}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-
-            {loading && <p className="pin-loading">Verifying PIN...</p>}
-
-            <div className="pin-links">
-              <button type="button" onClick={() => navigate('/login', { replace: true })}>
-                Use email and password
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+export default PinLoginPage;

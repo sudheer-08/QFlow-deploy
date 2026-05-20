@@ -1,99 +1,175 @@
-import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts'
-import api from '../services/api'
-import { smartBack } from '../utils/navigation'
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../services/supabase';
+import { useAuthStore } from '../store/authStore';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import './AdvancedAnalyticsPage.css';
 
-export default function AdvancedAnalyticsPage() {
-  const navigate = useNavigate()
-  const goBack = () => smartBack(navigate, '/admin')
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD'];
 
-  const { data: analytics, isLoading } = useQuery({
-    queryKey: ['advanced-analytics'],
-    queryFn: () => api.get('/advanced-analytics/overview').then(r => r.data),
-    refetchInterval: 60000
-  })
+const fetchAdvancedAnalytics = async (clinicId, startDate, endDate) => {
+    if (!clinicId || !startDate || !endDate) return null;
+    const { data, error } = await supabase.rpc('get_advanced_analytics', {
+        p_clinic_id: clinicId,
+        p_start_date: startDate,
+        p_end_date: endDate,
+    });
+    if (error) {
+        console.error("Error fetching advanced analytics:", error);
+        throw new Error(error.message);
+    }
+    return data[0];
+};
 
-  const peakData = analytics?.peakHours?.filter(h => parseInt(h.hour) >= 8 && parseInt(h.hour) <= 21) || []
+const AdvancedAnalyticsPage = () => {
+    const { user } = useAuthStore();
+    const [dateRange, setDateRange] = useState('last_30_days');
+    
+    const getDates = () => {
+        const endDate = new Date();
+        const startDate = new Date();
+        switch (dateRange) {
+            case 'last_7_days':
+                startDate.setDate(endDate.getDate() - 7);
+                break;
+            case 'last_30_days':
+                startDate.setDate(endDate.getDate() - 30);
+                break;
+            case 'this_month':
+                startDate.setDate(1);
+                break;
+            default:
+                startDate.setDate(endDate.getDate() - 30);
+        }
+        return {
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+        };
+    };
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif', paddingBottom: 40 }}>
-      <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 100 }}>
-        <button onClick={goBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 16 }}>←</button>
-        <div>
-          <h1 style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', margin: 0 }}>Advanced Analytics</h1>
-          <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>Last 30 days</p>
-        </div>
-      </div>
+    const { startDate, endDate } = getDates();
 
-      <div style={{ padding: 16 }}>
-        {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>Loading analytics...</div>
-        ) : (
-          <>
-            {/* KPI cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
-              {[
-                { label: 'Total Patients', value: analytics?.totalPatients || 0, icon: '👥', color: '#2563eb' },
-                { label: 'Today', value: analytics?.todayPatients || 0, icon: '📅', color: '#16a34a' },
-                { label: 'Appointments', value: analytics?.totalAppointments || 0, icon: '📋', color: '#7c3aed' },
-                { label: 'Avg Wait', value: `${analytics?.avgWaitMins || 0}m`, icon: '⏱', color: '#d97706' },
-              ].map(kpi => (
-                <div key={kpi.label} style={{ background: 'white', borderRadius: 14, padding: 16, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, marginBottom: 6 }}>{kpi.icon}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: kpi.color }}>{kpi.value}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{kpi.label}</div>
+    const { data: analytics, isLoading } = useQuery({
+        queryKey: ['advancedAnalytics', user?.tenant_id, startDate, endDate],
+        queryFn: () => fetchAdvancedAnalytics(user?.tenant_id, startDate, endDate),
+        enabled: !!user?.tenant_id,
+    });
+
+    const doctorPerformanceData = analytics?.doctor_performance || [];
+    const revenueByVisitType = analytics?.revenue_by_visit_type || [];
+    const ageGroupData = analytics?.patient_age_groups || [];
+    const genderData = analytics?.patient_gender_distribution || [];
+    const dailyRevenue = analytics?.daily_revenue || [];
+
+    return (
+        <div className="analytics-page">
+            <header className="analytics-header">
+                <h1>Advanced Analytics</h1>
+                <div className="date-range-selector">
+                    <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                        <option value="last_7_days">Last 7 Days</option>
+                        <option value="last_30_days">Last 30 Days</option>
+                        <option value="this_month">This Month</option>
+                    </select>
                 </div>
-              ))}
-            </div>
+            </header>
 
-            {/* Peak hours chart */}
-            <div style={{ background: 'white', borderRadius: 16, padding: 16, border: '1px solid #e2e8f0', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 14px' }}>🕐 Peak Hours (Last 30 days)</h3>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={peakData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={h => h.split(':')[0]} />
-                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                  <Tooltip formatter={(v) => [v, 'Patients']} />
-                  <Bar dataKey="patients" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {isLoading && <div className="loading-state">Loading analytics...</div>}
 
-            {/* Doctor performance */}
-            <div style={{ background: 'white', borderRadius: 16, padding: 16, border: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 14px' }}>👨‍⚕️ Doctor Performance</h3>
-              {(analytics?.doctors || []).length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>No data yet</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {analytics.doctors.map((doc, idx) => (
-                    <div key={idx} style={{ background: '#f8fafc', borderRadius: 12, padding: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <p style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', margin: 0 }}>{doc.name}</p>
-                        <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>{doc.completionRate}% completion</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                        {[
-                          { label: 'Patients', value: doc.totalPatients },
-                          { label: 'Avg Wait', value: `${doc.avgWait}m` },
-                          { label: 'No-show', value: `${doc.noShowRate}%` }
-                        ].map(stat => (
-                          <div key={stat.label} style={{ background: 'white', borderRadius: 8, padding: '8px', textAlign: 'center' }}>
-                            <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{stat.value}</div>
-                            <div style={{ fontSize: 10, color: '#94a3b8' }}>{stat.label}</div>
-                          </div>
-                        ))}
-                      </div>
+            {!isLoading && analytics && (
+                <main className="analytics-grid">
+                    <div className="analytics-card tall">
+                        <h2>Doctor Performance</h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={doctorPerformanceData} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                <XAxis type="number" />
+                                <YAxis type="category" dataKey="doctor_name" width={80} tick={{fontSize: 12}} />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="total_patients" fill="#8884d8" name="Patients Seen" />
+                                <Bar dataKey="avg_consult_time" fill="#82ca9d" name="Avg. Consult Time (mins)" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                        <table className="performance-table">
+                            <thead>
+                                <tr>
+                                    <th>Doctor</th>
+                                    <th>Patients</th>
+                                    <th>Avg. Time</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {doctorPerformanceData.map(doc => (
+                                    <tr key={doc.doctor_id}>
+                                        <td>{doc.doctor_name}</td>
+                                        <td>{doc.total_patients}</td>
+                                        <td>{doc.avg_consult_time?.toFixed(1)} mins</td>
+                                        <td>₹{doc.total_revenue?.toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
+
+                    <div className="analytics-card">
+                        <h2>Revenue by Visit Type</h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie data={revenueByVisitType} dataKey="total_revenue" nameKey="visit_type" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
+                                    {revenueByVisitType.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div className="analytics-card">
+                        <h2>Daily Revenue Trend</h2>
+                         <ResponsiveContainer width="100%" height={300}>
+                            <LineChart data={dailyRevenue}>
+                                <XAxis dataKey="date" tick={{fontSize: 12}} />
+                                <YAxis />
+                                <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                                <Legend />
+                                <Line type="monotone" dataKey="total_revenue" stroke="#8884d8" name="Revenue" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div className="analytics-card">
+                        <h2>Patient Age Groups</h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={ageGroupData}>
+                                <XAxis dataKey="age_group" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="count" fill="#82ca9d" name="Number of Patients" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div className="analytics-card">
+                        <h2>Patient Gender Distribution</h2>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie data={genderData} dataKey="count" nameKey="gender" cx="50%" cy="50%" outerRadius={80} fill="#ffc658" label>
+                                     {genderData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </main>
+            )}
+        </div>
+    );
+};
+
+export default AdvancedAnalyticsPage;

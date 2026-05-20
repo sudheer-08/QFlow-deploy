@@ -45,6 +45,8 @@ import QRPosterPage from './pages/QRPosterPage'
 import PushDebugPage from './pages/PushDebugPage'
 import IntakePage from './pages/IntakePage';
 import VitalsCapturePage from './pages/admin/VitalsCapturePage';
+import DoctorQRPage from './pages/DoctorQRPage';
+import CheckinPage from './pages/CheckinPage';
 
 import { useAuthStore } from './store/authStore'
 import IntakeFormPage from './pages/IntakeFormPage';
@@ -243,6 +245,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </ProtectedRoute>
 } />
             <Route path="/admin/vitals" element={<VitalsCapturePage />} />
+            <Route path="/track/:bookingId" element={<AppointmentTrackerPage />} />
+            <Route path="/doctor/:doctorId/qr" element={<DoctorQRPage />} />
+            <Route path="/checkin" element={<CheckinPage />} />
             <Route path="*" element={<NotFoundPage />} />
 
             </Routes>

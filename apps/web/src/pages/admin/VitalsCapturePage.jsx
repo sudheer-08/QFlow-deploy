@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '../components/Toast';
+import { useToast } from '../../components/Toast';
 
 const VitalsForm = ({ bookingId, onSave }) => {
     const [vitals, setVitals] = useState({});

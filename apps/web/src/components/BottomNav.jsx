@@ -18,7 +18,7 @@ export default function BottomNav() {
   const path = location.pathname
 
   // Don't show on staff pages or pages with their own fixed bottom CTA
-  const hiddenPages = ['/login', '/reception', '/doctor', '/admin', '/display', '/book/', '/join/', '/payment', '/track-appointment']
+  const hiddenPages = ['/login', '/reception', '/doctor', '/admin', '/display', '/book/', '/join/', '/payment', '/track-appointment', '/register-clinic']
   if (hiddenPages.some(p => path.startsWith(p))) return null
 
   return (

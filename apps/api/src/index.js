@@ -212,29 +212,25 @@ function checkPortAvailable(port) {
 }
 
 async function resolveServerPort(startPort) {
-  if (process.env.NODE_ENV === 'production') {
-    return startPort;
+  const available = await checkPortAvailable(startPort);
+  if (!available) {
+    throw new Error(
+      `\n❌ Port ${startPort} is already in use.\n` +
+      `   Find the process: netstat -ano | findstr :${startPort}\n` +
+      `   Kill it by PID:   taskkill /PID <pid> /F\n` +
+      `   Or change PORT in apps/api/.env and restart.\n`
+    );
   }
-
-  for (let i = 0; i < MAX_PORT_SCAN; i += 1) {
-    const candidate = startPort + i;
-    const available = await checkPortAvailable(candidate);
-    if (available) return candidate;
-  }
-
-  throw new Error(`No open port found from ${startPort} to ${startPort + MAX_PORT_SCAN - 1}`);
+  return startPort;
 }
 
 let server;
 
 async function startServer() {
   const selectedPort = await resolveServerPort(PORT);
-  if (selectedPort !== PORT) {
-    console.warn(`⚠️ Port ${PORT} is busy. Falling back to port ${selectedPort} in development.`);
-  }
 
   server = httpServer.listen(selectedPort, () => {
-    console.log(`✅ QFlow API running on port ${selectedPort}`);
+    console.log(`✅ QFlow API running on http://localhost:${selectedPort}`);
     console.log('✅ Socket.io ready for real-time connections');
   });
 

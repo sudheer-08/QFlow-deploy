@@ -14,10 +14,9 @@ const {
   isTimeHHMM,
   isUuid,
   normalizeEmail,
-  normalizePhone
 } = require('../utils/validation');
 const { validateBookingAvailability, getAvailableSlots } = require('../utils/bookingValidation');
-import { updateDoctorStats } from './stats.js';
+const { updateDoctorStats } = require('../services/stats');
 
 // ─── Helper: generate time slots ─────────────────────
 const generateSlots = (start, end, durationMins) => {
@@ -180,32 +179,43 @@ router.get('/slots', async (req, res) => {
 router.post('/book', async (req, res) => {
   try {
     const {
-      tenantId, doctorId, patientName, phone, email, patientId: loggedInPatientId,
-      date, slotTime, symptoms, visitType
+      clinic_id, doctor_id, appointment_time,
+      patient_name, patient_phone, patient_email,
+      symptoms, visit_type, booked_by_patient_id,
+      booking_for, family_member_name, family_member_relation
     } = req.body;
 
-    const cleanPatientName = typeof patientName === 'string' ? patientName.trim() : patientName;
-    const cleanPhone = normalizePhone(phone);
-    const cleanEmail = email ? normalizeEmail(email) : null;
+    const isBookingForOther = booking_for === 'other';
+    const nameForRecord = isBookingForOther ? family_member_name : patient_name;
 
-    assert(isUuid(tenantId), 'tenantId must be a valid UUID');
-    assert(isNonEmptyString(doctorId), 'doctorId is required');
-    if (loggedInPatientId) {
-      assert(isUuid(loggedInPatientId), 'patientId must be a valid UUID');
+    const cleanPatientName = typeof nameForRecord === 'string' ? nameForRecord.trim() : nameForRecord;
+    const cleanPhone = normalizePhone(patient_phone);
+    const cleanEmail = patient_email ? normalizeEmail(patient_email) : null;
+
+    assert(isUuid(clinic_id), 'clinic_id must be a valid UUID');
+    assert(isNonEmptyString(doctor_id), 'doctor_id is required');
+    if (booked_by_patient_id) {
+      assert(isUuid(booked_by_patient_id), 'booked_by_patient_id must be a valid UUID');
     }
-    assert(isNonEmptyString(cleanPatientName, 100), 'patientName is required');
+    assert(isNonEmptyString(cleanPatientName, 100), 'Patient name is required');
+    if (isBookingForOther) {
+      assert(isNonEmptyString(family_member_relation, 50), 'Family member relation is required');
+    }
     assert(isPhone(cleanPhone), 'Valid phone is required');
-    if (email) {
+    if (patient_email) {
       assert(isEmail(cleanEmail), 'Invalid email format');
     }
-    assert(isIsoDate(date), 'date must be in YYYY-MM-DD format');
-    assert(isTimeHHMM(slotTime), 'slotTime must be in HH:MM format');
+    assert(isIsoDate(appointment_time), 'appointment_time must be a valid ISO string');
+
+    const appointmentDate = getLocalDateString(new Date(appointment_time));
+    const appointmentTime = new Date(appointment_time).toTimeString().slice(0, 5);
+
 
     const { data: doctorRecord, error: doctorError } = await supabase
       .from('users')
       .select('id, tenant_id, name, tenants(name, subdomain)')
-      .eq('id', doctorId)
-      .eq('tenant_id', tenantId)
+      .eq('id', doctor_id)
+      .eq('tenant_id', clinic_id)
       .eq('role', 'doctor')
       .eq('is_active', true)
       .single();
@@ -217,253 +227,111 @@ router.post('/book', async (req, res) => {
     const io = req.app.get('io');
 
     // 1. Find an existing patient by phone/email/id, otherwise create a new patient account.
-    let patientId = null;
+    let patientIdToBook = null;
+    let bookingUserId = booked_by_patient_id; // The user making the booking
 
-    if (loggedInPatientId) {
-      const { data: existingById, error: existingByIdErr } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', loggedInPatientId)
-        .eq('role', 'patient')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (existingByIdErr) throw existingByIdErr;
-
-      if (existingById) {
-        patientId = existingById.id;
-      }
+    // If a logged-in user is booking for someone else, we need to find/create the patient record
+    // for that 'someone else', but associate the booking with the logged-in user.
+    if (isBookingForOther && bookingUserId) {
+        // First, ensure the user making the booking exists
+        const { data: bookingUserExists } = await supabase.from('users').select('id').eq('id', bookingUserId).single();
+        if (!bookingUserExists) {
+            return res.status(404).json({ error: 'The user making the booking was not found.' });
+        }
     }
 
-    if (!patientId) {
-      const { data: existingPatient, error: existingPatientErr } = await supabase
-        .from('users')
-        .select('id')
-        .eq('phone', cleanPhone)
-        .eq('role', 'patient')
-        .eq('is_active', true)
-        .maybeSingle();
 
-      if (existingPatientErr) throw existingPatientErr;
+    // Find or create the patient profile for whom the appointment is being booked.
+    // This could be the logged-in user OR the family member.
+    const { data: existingPatient, error: existingPatientErr } = await supabase
+      .from('users')
+      .select('id')
+      .eq('phone', cleanPhone)
+      .eq('role', 'patient')
+      .eq('is_active', true)
+      .maybeSingle();
 
-      if (existingPatient) {
-        patientId = existingPatient.id;
-      }
-    }
+    if (existingPatientErr) throw existingPatientErr;
 
-    if (!patientId && cleanEmail) {
-      const { data: existingByEmail, error: existingByEmailErr } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', cleanEmail)
-        .eq('role', 'patient')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (existingByEmailErr) throw existingByEmailErr;
-
-      if (existingByEmail) {
-        patientId = existingByEmail.id;
-      }
-    }
-
-    if (!patientId) {
-      patientId = uuidv4();
-      const { error: patientError } = await supabase.from('users').insert({
-        id: patientId,
-        tenant_id: tenantId,
+    if (existingPatient) {
+      patientIdToBook = existingPatient.id;
+    } else {
+      const { data: newPatient, error: patientError } = await supabase.from('users').insert({
+        tenant_id: clinic_id,
         name: cleanPatientName,
         phone: cleanPhone,
         email: cleanEmail,
         role: 'patient',
         is_active: true
-      });
+      }).select('id').single();
 
       if (patientError) throw patientError;
+      patientIdToBook = newPatient.id;
     }
 
-    // 2. Fetch doctor's slot settings (duration/fee) and check slot availability.
-    // Fetch early to avoid referencing `settings` before initialization.
+    // If booking for other, and a user is logged in, create the family link
+    if (isBookingForOther && bookingUserId && patientIdToBook) {
+        // Avoid creating duplicate links
+        const { data: existingLink } = await supabase.from('family_members')
+            .select('id')
+            .eq('user_id', bookingUserId)
+            .eq('member_patient_id', patientIdToBook)
+            .maybeSingle();
+
+        if (!existingLink) {
+            const { error: familyError } = await supabase.from('family_members').insert({
+                user_id: bookingUserId,
+                member_patient_id: patientIdToBook,
+                relationship: family_member_relation,
+                member_name: cleanPatientName,
+            });
+            if (familyError) {
+                console.error("Error creating family link:", familyError);
+                // Non-critical, so we just log it and continue
+            }
+        }
+    }
+
+
+    // 2. Fetch doctor's slot settings (duration/fee)
     const { data: slotSettings } = await supabase
       .from('doctor_slot_settings')
       .select('consultation_fee, slot_duration_mins')
       .eq('doctor_id', doctorRecord.id)
       .maybeSingle();
 
-    // Validate booking using comprehensive conflict checking with buffer times
-    const validation = await validateBookingAvailability(
-      supabase,
-      doctorRecord.id,
-      patientId,
-      date,
-      slotTime,
-      slotSettings?.slot_duration_mins || 20
-    );
+    // No exact slot overlapping checks for Queue system.
 
-    if (!validation.isValid) {
-      return res.status(409).json({ 
-        error: validation.reason,
-        errorCode: validation.error
-      });
-    }
+    // 3. Create the booking
+    const appointmentId = uuidv4();
+    const { data: appointment, error: apptError } = await supabase.from('bookings').insert({
+      id: appointmentId,
+      tenant_id: clinic_id,
+      doctor_id: doctor_id,
+      patient_id: patientIdToBook,
+      appointment_time: appointment_time,
+      status: 'scheduled',
+      source: 'web',
+      visit_type: visit_type,
+      patient_name_cache: cleanPatientName,
+      patient_phone_cache: cleanPhone,
+    }).select('id, token_number').single();
 
-    // If the same patient retries the same booking, return the existing appointment instead of failing.
-    const { data: existing, error: existingErr } = await supabase
-      .from('appointments')
-      .select('id, patient_id, tracker_url_token, payment_amount, appointment_date, slot_time')
-      .eq('doctor_id', doctorRecord.id)
-      .eq('appointment_date', date)
-      .eq('slot_time', slotTime)
-      .eq('patient_id', patientId)
-      .in('status', ['confirmed', 'pending'])
-      .maybeSingle();
+    if (apptError) throw apptError;
 
-    if (existingErr) throw existingErr;
-
-    // 3. Use previously fetched slot settings for fee (used by both existing and new appointment response).
-    const clinicName = doctorRecord?.tenants?.name || 'the clinic';
-    const clinicSubdomain = doctorRecord?.tenants?.subdomain || null;
-    const doctorName = doctorRecord?.name || 'the doctor';
-    const consultationFee = slotSettings?.consultation_fee || existing?.payment_amount || 300;
-
-    if (existing) {
-      if (existing.patient_id === patientId) {
-        return res.status(200).json({
-          appointmentId: existing.id,
-          trackerToken: existing.tracker_url_token,
-          trackerUrl: `/track-appointment/${existing.tracker_url_token}`,
-          date,
-          slotTime,
-          consultationFee,
-          clinicName,
-          doctorName,
-          alreadyBooked: true,
-          message: 'You already have this appointment confirmed.'
-        });
-      }
-
-      return res.status(400).json({ error: 'This slot was just booked. Please pick another time.' });
-    }
-
-    // 4. AI triage
-    let priority = 'routine';
-    let aiSummary = '';
-    if (symptoms) {
-      try {
-        const result = await classifySymptoms(symptoms);
-        priority = result.priority;
-        aiSummary = result.summary;
-      } catch (e) {
-        console.warn('AI triage failed:', e.message);
-      }
-    }
-
-    const trackerToken = uuidv4().replace(/-/g, '');
-
-    // 5. Create appointment
-    const { data: appointment, error } = await supabase
-      .from('appointments')
-      .insert({
-        id: uuidv4(),
-        tenant_id: tenantId,
-        patient_id: patientId,
-        doctor_id: doctorRecord.id,
-        appointment_date: date,
-        slot_time: slotTime,
-        visit_type: visitType || 'first_visit',
-        symptoms,
-        ai_summary: aiSummary,
-        priority,
-        status: 'pending',
-        payment_status: 'pending',
-        payment_amount: consultationFee,
-        tracker_url_token: trackerToken
-      })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === '23505') {
-        return res.status(409).json({ error: 'This slot was just booked. Please pick another time.' });
-      }
-      throw error;
-    }
-
-    // 7. Send notification confirmation
-    const appointmentDate = new Date(date).toLocaleDateString('en-IN', {
-      weekday: 'long', day: 'numeric', month: 'long'
-    });
-
-    const confirmationMessage =
-      `⏳ *Appointment Request Sent!*\n\n` +
-      `🏥 *${clinicName}*\n` +
-      `👨‍⚕️ ${doctorName}\n` +
-      `📅 ${appointmentDate}\n` +
-      `⏰ ${slotTime}\n` +
-      `💰 Fee: ₹${consultationFee}\n\n` +
-      `We will review and confirm your slot shortly. Track status:\n${process.env.FRONTEND_URL}/track-appointment/${trackerToken}`;
-
-    // Prefer userId delivery so logged-in patients receive push even if phone formats differ.
-    queueNotificationSend({
-      userId: patientId,
-      phone: cleanPhone,
-      title: 'Appointment Confirmed',
-      body: `${clinicName} • ${appointmentDate} • ${slotTime}`,
-      message: confirmationMessage,
-      data: {
-        type: 'appointment_confirmed',
-        appointmentId: appointment.id,
-        trackerToken,
-        link: `${process.env.FRONTEND_URL}/track-appointment/${trackerToken}`
-      }
-    }).catch((err) => {
-      console.warn('Notification confirmation failed:', err.message);
-    });
-
-    // 8. Schedule reminders
-    try {
-      await scheduleReminders(appointment);
-    } catch (reminderErr) {
-      console.warn('⚠️ Could not schedule reminders:', reminderErr.message);
-    }
-
-    // 9. Notify clinic dashboard (best effort; should not fail booking response)
-    try {
-      if (io?.to) {
-        io.to(`tenant:${tenantId}`).emit('appointment:new', {
-          patientName: cleanPatientName,
-          date,
-          slotTime,
-          doctorName,
-          priority
-        });
-
-        // Also notify public clinic pages so patient-facing views refresh instantly.
-        if (clinicSubdomain) {
-          io.to(`clinic:${clinicSubdomain}`).emit('clinic:updated', {
-            type: 'appointment_booked',
-            date,
-            doctorId,
-            slotTime
-          });
-        }
-      }
-    } catch (socketErr) {
-      console.warn('Socket broadcast failed after booking:', socketErr.message);
-    }
+    io.to(`queue:${doctor_id}:${appointmentDate}`).emit('queue:state_change');
 
     res.status(201).json({
-      appointmentId: appointment.id,
-      trackerToken,
-      trackerUrl: `/track-appointment/${trackerToken}`,
-      date,
-      slotTime,
-      consultationFee,
-      clinicName,
-      doctorName,
-      message: `Appointment confirmed for ${appointmentDate} at ${slotTime}`
+      message: 'Appointment booked successfully',
+      appointmentId: appointmentId,
+      patientId: patientIdToBook,
+      trackerToken: appointmentId,
+      clinicName: doctorRecord.tenants?.name,
+      doctorName: doctorRecord.name,
+      date: appointment_time,
+      estimatedTime: 'To be calculated on check-in',
+      consultationFee: slotSettings?.consultation_fee || 0
     });
-
   } catch (err) {
     console.error('Book appointment error:', err);
     res.status(err.status || 500).json({ error: err.status ? err.message : 'Booking failed' });

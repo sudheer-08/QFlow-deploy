@@ -1,150 +1,192 @@
-import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
-import api from '../services/api'
-import socket, { connectClinic } from '../socket'
+import React, { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { format } from "date-fns";
+import api from "../services/api";
+import { supabase } from "../services/supabase";
 
-// This page runs on the clinic TV — no login needed
-// URL: /display?tenant=TENANT_ID
+// Full screen Waiting Room UI
+// URL: /display/:clinicId
 export default function DisplayBoardPage() {
-  const [searchParams] = useSearchParams()
-  const tenantId = searchParams.get('tenant')
-  const [lastCalled, setLastCalled] = useState(null)
-  const [flash, setFlash] = useState(false)
+  const { clinicId } = useParams();
+  const date = format(new Date(), "yyyy-MM-dd");
+  
+  const [data, setData] = useState({ doctors: [] });
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  const { data: queue = [] } = useQuery({
-    queryKey: ['display-queue', tenantId],
-    queryFn: () => api.get('/queue/live').then(r => r.data),
-    refetchInterval: 15000,
-    enabled: !!tenantId
-  })
+  // Keep time ticking
+  useEffect(() => {
+    const intv = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(intv);
+  }, []);
 
-  const called = queue.filter(e => e.status === 'called' || e.status === 'in_progress')
-  const waiting = queue.filter(e => e.status === 'waiting').slice(0, 6)
+  const fetchData = async () => {
+    try {
+        // Fetch all doctors for this clinic and their queue status
+        // In a real optimized system, we'd have a specific TV Display API route:
+        // /api/queue/display/:clinicId?date=...
+        // For this demo, let's assemble it from components we know exist if needed,
+        // or assume an endpoint exists
+        const res = await api.get(`/queue/display/${clinicId}?date=${date}`);
+         setData(res.data.data);
+    } catch(err) {
+        console.error("Display board sync failed", err);
+    }
+  }
 
   useEffect(() => {
-    if (!tenantId) return
-    // Connect to real-time updates for this clinic
-    connectClinic(tenantId, 'display', 'display')
+     fetchData();
+     
+     // The display board needs to listen to ALL doctors in this clinic
+     // We can just subscribe to the entire clinic tenant for the day
+     const channel = supabase
+      .channel(`display:${clinicId}:${date}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bookings",
+          filter: `tenant_id=eq.${clinicId}`, // assuming bookings have tenant_id
+        },
+        () => {
+           // Any booking update triggers a refresh of the TV display
+           fetchData();
+        }
+      )
+      .subscribe();
 
-    socket.on('queue:token_called', (data) => {
-      setLastCalled(data)
-      setFlash(true)
-      setTimeout(() => setFlash(false), 3000)
-    })
+    return () => {
+      supabase.removeChannel(channel);
+    };
 
-    return () => socket.off('queue:token_called')
-  }, [tenantId])
+  }, [clinicId, date]);
 
-  const priorityColor = (p) => ({
-    critical: 'text-red-400',
-    moderate: 'text-yellow-400',
-    routine: 'text-green-400'
-  })[p] || 'text-gray-400'
+  // Grouping logic for the UI
+  // The backend should return { doctors: [ { id, name, room, state: { current, called, checked_in } } ] }
+  
+  if(!data.doctors.length) {
+      return (
+         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+              <h1 className="text-4xl text-slate-500 font-bold">Waiting for Queue Data...</h1>
+         </div>
+      );
+  }
+
+  // Find all globally "Called" tokens to highlight at the top or flash
+  const calledTokens = data.doctors
+     .filter(doc => doc.state?.called)
+     .map(doc => ({ ...doc.state.called, doc_name: doc.name, room: doc.room || 'Cabin' }));
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col select-none">
-
-      {/* Flash overlay when token is called */}
-      {flash && (
-        <div className="fixed inset-0 bg-blue-500 opacity-20 z-50 pointer-events-none animate-ping" />
-      )}
-
-      {/* Header */}
-      <div className="bg-gray-900 px-8 py-5 flex items-center justify-between border-b border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-xl">Q</span>
+    <div className="min-h-screen bg-slate-900 text-white font-sans overflow-hidden flex flex-col p-6">
+      
+      {/* HEADER */}
+      <header className="flex justify-between items-center bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-2xl mb-8">
+          <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">Clinic Status Board</h1>
+              <p className="text-slate-400 font-medium text-lg mt-1">{format(currentTime, "EEEE, MMMM do")}</p>
           </div>
-          <span className="text-xl font-bold text-white">QFlow</span>
-        </div>
-        <div className="text-gray-400 text-lg">
-          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </div>
-      </div>
-
-      <div className="flex flex-1 gap-0">
-
-        {/* NOW SERVING — left panel */}
-        <div className="w-1/2 bg-blue-900 flex flex-col items-center justify-center p-12 border-r border-blue-800">
-          <p className="text-blue-300 text-xl font-semibold tracking-widest uppercase mb-6">
-            Now Serving
-          </p>
-
-          {called.length > 0 ? (
-            called.map((entry) => (
-              <div key={entry.id} className="text-center">
-                <div className={`text-9xl font-black tracking-tight mb-4 ${flash ? 'text-yellow-400' : 'text-white'} transition-colors duration-500`}>
-                  {entry.token_number}
-                </div>
-                <div className="text-blue-200 text-2xl">{entry.doctors?.name}</div>
-                {entry.registration_type === 'self_registered' && (
-                  <div className="mt-3 text-blue-300 text-sm">📱 Remote Patient</div>
-                )}
+          <div className="text-right">
+              <div className="text-5xl font-black tabular-nums tracking-tight">
+                  {format(currentTime, "h:mm")} <span className="text-2xl text-slate-400">{format(currentTime, "a")}</span>
               </div>
-            ))
-          ) : (
-            <div className="text-center opacity-40">
-              <div className="text-8xl font-black text-blue-300">---</div>
-              <p className="text-blue-400 text-xl mt-4">Waiting for next call</p>
-            </div>
-          )}
-        </div>
-
-        {/* NEXT UP — right panel */}
-        <div className="w-1/2 bg-gray-900 flex flex-col p-8">
-          <p className="text-gray-400 text-lg font-semibold tracking-widest uppercase mb-6">
-            Next in Queue
-          </p>
-
-          {waiting.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center opacity-30">
-              <p className="text-gray-500 text-xl">Queue is empty</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {waiting.map((entry, idx) => (
-                <div key={entry.id} className="flex items-center justify-between bg-gray-800 rounded-2xl px-6 py-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-gray-500 font-medium w-8">#{idx + 1}</span>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-white text-2xl font-bold">{entry.token_number}</span>
-                        <span className={`text-sm font-medium ${priorityColor(entry.priority)}`}>
-                          {entry.priority === 'critical' ? '🔴' : entry.priority === 'moderate' ? '🟡' : '🟢'}
-                        </span>
-                      </div>
-                      <p className="text-gray-400 text-sm">{entry.doctors?.name}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {entry.registration_type === 'self_registered' && (
-                      <span className="text-xs text-indigo-400 block">📱 Remote</span>
-                    )}
-                    {entry.arrival_status === 'at_home' && (
-                      <span className="text-xs text-yellow-400 block">🏠 En route</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Stats footer */}
-          <div className="mt-auto pt-6 border-t border-gray-800 grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-white">{waiting.length}</div>
-              <div className="text-gray-500 text-sm">Waiting</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-white">
-                {waiting.length > 0 ? `~${waiting.length * 8}` : '0'} min
-              </div>
-              <div className="text-gray-500 text-sm">Est. Wait</div>
-            </div>
           </div>
-        </div>
+      </header>
+
+
+      {/* MAIN CONTENT GRID */}
+      <div className="flex-1 grid grid-cols-3 gap-8">
+          
+          {/* Active Calls column */}
+          <div className="col-span-1 flex flex-col gap-6">
+            <h2 className="text-2xl font-bold text-slate-300 uppercase tracking-widest pl-2">Now Calling</h2>
+            
+            {calledTokens.length === 0 ? (
+                <div className="flex-1 bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-700 flex items-center justify-center opacity-50">
+                    <p className="text-2xl font-semibold text-slate-500">No active calls</p>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-4">
+                    {calledTokens.map(token => (
+                         <div key={token.id} className="bg-gradient-to-br from-orange-500 to-red-500 p-8 rounded-3xl shadow-xl shadow-orange-500/20 text-center animate-pulse border-2 border-orange-400">
+                             <div className="text-xs font-black uppercase tracking-[0.3em] text-orange-200 mb-2">Proceed To</div>
+                             <div className="text-3xl font-bold text-white mb-6 bg-white/20 py-2 px-4 rounded-xl inline-block backdrop-blur-sm">
+                                 {token.room}
+                             </div>
+                             
+                             <div className="text-sm font-semibold uppercase tracking-widest text-orange-200 mb-1">Token Number</div>
+                             <div className="text-7xl font-black tabular-nums mb-4 text-white drop-shadow-md">
+                                 T-{String(token.token_number).padStart(3, "0")}
+                             </div>
+                             
+                             <div className="text-2xl font-bold text-whitetruncate">
+                                 Dr. {token.doc_name.split(' ')[0]}
+                             </div>
+                         </div>
+                    ))}
+                </div>
+            )}
+          </div>
+
+          {/* Doctor status columns */}
+          <div className="col-span-2 grid grid-cols-2 gap-6">
+               {data.doctors.map(doctor => {
+                   const { state } = doctor;
+                   const inProgress = Object.keys(state || {}).length > 0 ? state.current : null;
+                   const upNext = state?.checked_in?.slice(0, 3) || [];
+
+                   return (
+                       <div key={doctor.id} className="bg-slate-800 rounded-3xl border border-slate-700 flex flex-col overflow-hidden pb-4">
+                           
+                           {/* Doc Header */}
+                           <div className="bg-slate-800 p-5 px-6 border-b border-slate-700/50 flex justify-between items-center">
+                               <div>
+                                   <h3 className="text-2xl font-bold text-slate-100">Dr. {doctor.name.split(' ')[0]}</h3>
+                                   <p className="text-slate-400 font-medium">{doctor.room || 'Consultation'}</p>
+                               </div>
+                           </div>
+
+                           {/* In Progress */}
+                           <div className="px-6 py-5">
+                               <div className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">In Progress</div>
+                               {inProgress ? (
+                                   <div className="bg-slate-700/50 rounded-2xl p-5 border border-slate-600 flex items-center justify-between">
+                                       <span className="text-4xl font-black text-blue-400">
+                                          T-{String(inProgress.token_number).padStart(3, "0")}
+                                       </span>
+                                       <span className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]"></span>
+                                   </div>
+                               ) : (
+                                   <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700/50 flex items-center justify-center">
+                                        <span className="text-xl font-bold text-slate-600">Available</span>
+                                   </div>
+                               )}
+                           </div>
+
+                           {/* Up Next */}
+                           <div className="px-6 flex-1">
+                               <div className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">Next in Queue</div>
+                               
+                               {upNext.length === 0 ? (
+                                   <div className="text-center py-6 text-slate-600 font-medium text-lg">No one waiting</div>
+                               ) : (
+                                   <div className="space-y-3">
+                                       {upNext.map((patient, idx) => (
+                                           <div key={patient.id} className="bg-slate-900/50 rounded-xl p-4 flex items-center justify-between border border-slate-700/30">
+                                               <span className="text-2xl font-bold font-mono text-slate-300">
+                                                  T-{String(patient.token_number).padStart(3, "0")}
+                                               </span>
+                                               {idx === 0 && <span className="bg-green-500/20 text-green-400 text-xs font-bold px-3 py-1 rounded-lg">NEXT</span>}
+                                           </div>
+                                       ))}
+                                   </div>
+                               )}
+                           </div>
+                       </div>
+                   );
+               })}
+          </div>
       </div>
     </div>
-  )
+  );
 }

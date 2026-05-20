@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, AlertCircle, Clock, Pill, FileText, User, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';
+import PostVisitSummary from './PostVisitSummary';
 
 const PRIORITY_STYLES = {
   critical: 'bg-red-100 text-red-700 border-red-300',
@@ -180,21 +181,7 @@ export default function PatientBriefModal({ patientId, appointmentId, queueEntry
                           </p>
                           <p className="text-xs text-gray-400">{visit.doctor?.name}</p>
                         </div>
-                        {visit.diagnosis && (
-                          <p className="text-sm font-medium text-gray-700">
-                            🩺 {visit.diagnosis}
-                          </p>
-                        )}
-                        {visit.medicines && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            💊 {visit.medicines}
-                          </p>
-                        )}
-                        {visit.follow_up_date && (
-                          <p className="text-xs text-blue-500 mt-1">
-                            📅 Follow-up: {new Date(visit.follow_up_date).toLocaleDateString('en-IN')}
-                          </p>
-                        )}
+                        <PostVisitSummary bookingId={visit.id} />
                       </div>
                     ))}
                   </div>

@@ -1,146 +1,39 @@
 const { queueNotificationSend } = require('../jobs/reminders');
 
-const sendNotification = async (phone, message) => {
-  if (!phone) {
-    return { success: false, reason: 'Phone number not provided' };
-  }
-  return queueNotificationSend({ phone, message });
+const TEMPLATES = {
+  booking_confirmed: (vars) => `Hello ${vars.name}, your token at ${vars.clinic_name} is T-${String(vars.token_number).padStart(3, '0')}. Estimated time: ${vars.estimated_window}. Track your queue live: ${vars.tracker_url} Check in when you arrive: ${vars.checkin_url}`,
+  checkin_confirmed: (vars) => `You've checked in at ${vars.clinic_name}. You are number ${vars.position} in the queue. Estimated time: ~${vars.eta}. We'll notify you when your turn is coming up.`,
+  heads_up_approaching: (vars) => `Your turn at ${vars.clinic_name} is coming up soon. ${vars.tokens_ahead} patient(s) ahead of you. Estimated time: ~${vars.eta}. Please make your way to the clinic now.`,
+  you_are_called: (vars) => `You are being called now at ${vars.clinic_name}. Please proceed to the consultation room immediately. Token: T-${String(vars.token_number).padStart(3, '0')}`,
+  eta_updated: (vars) => `Update from ${vars.clinic_name}: your estimated time has been updated to ~${vars.new_eta} (approx ${vars.delay_minutes} min change). Track live: ${vars.tracker_url}`,
+  skipped_notification: (vars) => `You were called at ${vars.clinic_name} but were not present. Your token T-${String(vars.token_number).padStart(3, '0')} is still valid — please come to reception when you arrive and we'll fit you back in.`,
+  delay_alert: (vars) => `Update from ${vars.clinic_name}: appointments are running approximately ${vars.delay_minutes} minutes late today. Your updated estimated time is ~${vars.new_eta}. No need to rush — we'll notify you when your turn is approaching. We apologise for the inconvenience.`,
 };
 
-const sendAppointmentConfirmed = (phone, { clinicName, patientName, doctorName, date, time, token }) =>
-  sendNotification(
-    phone,
-`✅ *${clinicName}*
 
-Hello ${patientName}! Your appointment is confirmed.
-
-👨‍⚕️ Doctor: ${doctorName}
-📅 Date: ${date}
-⏰ Time: ${time}
-
-Track your appointment: ${process.env.FRONTEND_URL}/track/${token}
-`
-  );
-
-const sendAppointmentDeclined = (phone, { clinicName, patientName, reason, alternateSlot, subdomain }) =>
-  sendNotification(
-    phone,
-`❌ *${clinicName}*
-
-Hello ${patientName}, your appointment request could not be confirmed.
-
-Reason: ${reason}
-${alternateSlot ? `\n📅 Suggested slot: *${alternateSlot}*\nBook now: ${process.env.FRONTEND_URL}/book/${subdomain}` : `\nPlease rebook: ${process.env.FRONTEND_URL}/book/${subdomain}`}
-`
-  );
-
-const sendSuggestedSlot = (phone, { clinicName, patientName, altSlot, token }) =>
-  sendNotification(
-    phone,
-`🔄 *${clinicName}*
-
-Hello ${patientName}! The clinic has suggested a new slot.
-
-📅 New slot: *${altSlot}*
-
-Accept or reschedule: ${process.env.FRONTEND_URL}/track/${token}`
-  );
-
-const sendPrescription = (phone, { clinicName, patientName, doctorName, diagnosis, medicines, instructions }) =>
-  sendNotification(
-    phone,
-`💊 *${clinicName} — Prescription*
-
-Patient: ${patientName}
-Doctor: ${doctorName}
-
-📋 Diagnosis: ${diagnosis}
-
-💊 Medicines:
-${medicines.map(m => `• ${m.name} — ${m.dosage} (${m.duration})`).join('\n')}
-
-📝 Instructions: ${instructions || 'Follow up if symptoms persist'}
-
-Keep this message for your records.`
-  );
-
-const sendRatingRequest = (phone, { clinicName, patientName, tenantId }) =>
-  sendNotification(
-    phone,
-`⭐ *${clinicName}*
-
-Hello ${patientName}! Thank you for visiting us today.
-
-How was your experience? Rate us here:
-${process.env.FRONTEND_URL}/rate/${tenantId}
-
-Your feedback helps us improve! 🙏`
-  );
-
-const sendFollowUpReminder = (phone, { clinicName, patientName, followUpDate, subdomain }) =>
-  sendNotification(
-    phone,
-`📅 *${clinicName} — Follow-up Reminder*
-
-Hello ${patientName}!
-
-Your doctor has recommended a follow-up visit on *${followUpDate}*.
-
-Book your slot: ${process.env.FRONTEND_URL}/book/${subdomain}`
-  );
-
-const sendWaitlistSlotAvailable = (phone, { clinicName, patientName, slot, subdomain }) =>
-  sendNotification(
-    phone,
-`🎉 *${clinicName} — Slot Available!*
-
-Hello ${patientName}! A slot just opened up.
-
-📅 Available: *${slot}*
-
-Book now (15 min window):
-${process.env.FRONTEND_URL}/book/${subdomain}
-
-This offer expires in 15 minutes ⏰`
-  );
-
-const sendClinicClosure = (phone, { clinicName, patientName, reason, newDate }) =>
-  sendNotification(
-    phone,
-`⚠️ *${clinicName} — Important Update*
-
-Hello ${patientName}, your appointment has been cancelled.
-
-Reason: ${reason}
-${newDate ? `\nRescheduled to: *${newDate}*` : `\nPlease rebook: ${process.env.FRONTEND_URL}`}
-
-We apologize for the inconvenience.`
-  );
-
-const sendBulkMessage = async (phones, { clinicName, message }) => {
-  const results = [];
-  for (const phone of phones) {
-    const result = await sendNotification(
-      phone,
-`📢 *${clinicName}*
-
-${message}`
-    );
-    results.push({ phone, ...result });
-    await new Promise((resolve) => setTimeout(resolve, 500));
+/**
+ * Sends a notification using a pre-defined template via a background job queue.
+ * @param {string} phone - The recipient's phone number.
+ * @param {keyof TEMPLATES} templateName - The name of the template to use.
+ * @param {object} variables - The variables to inject into the template.
+ */
+const sendNotification = async (phone, templateName, variables) => {
+  if (!phone) {
+    console.warn(`Notification "${templateName}" skipped: Phone number not provided.`);
+    return { success: false, reason: 'Phone number not provided' };
   }
-  return results;
+
+  if (!TEMPLATES[templateName]) {
+    console.error(`Notification template "${templateName}" not found.`);
+    return { success: false, reason: `Template ${templateName} not found.` };
+  }
+
+  const message = TEMPLATES[templateName](variables);
+
+  // Use the job queue to send the message asynchronously
+  return queueNotificationSend({ phone, message });
 };
 
 module.exports = {
   sendNotification,
-  sendAppointmentConfirmed,
-  sendAppointmentDeclined,
-  sendSuggestedSlot,
-  sendPrescription,
-  sendRatingRequest,
-  sendFollowUpReminder,
-  sendWaitlistSlotAvailable,
-  sendClinicClosure,
-  sendBulkMessage
 };

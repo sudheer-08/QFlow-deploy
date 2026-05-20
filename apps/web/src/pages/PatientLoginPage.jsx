@@ -70,7 +70,7 @@ export default function PatientLoginPage() {
           dateOfBirth: form.dob
         })
         await login(data.user, data.accessToken, data.refreshToken)
-        navigate('/', { replace: true })
+        navigate('/patient/dashboard', { replace: true })
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong')
@@ -124,14 +124,14 @@ export default function PatientLoginPage() {
               <div>
                 <span className="pl-inline-label">Gender</span>
                 <div className="pl-gender-row">
-                  {['Male', 'Female', 'Other'].map(g => (
+                  {['male', 'female', 'other'].map(g => (
                     <button
                       key={g}
                       type="button"
                       className={`pl-gender ${form.gender === g ? 'is-active' : ''}`}
                       onClick={() => setForm({ ...form, gender: g })}
                     >
-                      {g}
+                      {g.charAt(0).toUpperCase() + g.slice(1)}
                     </button>
                   ))}
                 </div>

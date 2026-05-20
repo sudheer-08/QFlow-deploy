@@ -1,155 +1,158 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import AddToCalendar from '../components/AddToCalendar'
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../services/supabase'; // Assuming you have a supabase client export
+import { Clock, User, Users, TrendingUp, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import './AppointmentTrackerPage.css';
+
+const fetchBookingDetails = async (bookingId) => {
+    const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+            *,
+            doctors ( name, avg_consultation_time_minutes ),
+            clinics ( name )
+        `)
+        .eq('id', bookingId)
+        .single();
+    if (error) throw new Error(error.message);
+    return data;
+};
+
+const fetchQueuePosition = async (doctorId, bookingId) => {
+    const { data, error } = await supabase
+        .from('bookings')
+        .select('id, status, token_number')
+        .eq('doctor_id', doctorId)
+        .in('status', ['checked_in', 'called', 'in_progress'])
+        .order('queue_position', { ascending: true });
+
+    if (error) throw error;
+
+    const currentlyServing = data.find(b => ['called', 'in_progress'].includes(b.status));
+    const waitingList = data.filter(b => b.status === 'checked_in');
+    const myIndex = waitingList.findIndex(b => b.id === bookingId);
+    const myPosition = myIndex !== -1 ? myIndex + 1 : null;
+
+    return {
+        position: myPosition,
+        currentlyServingToken: currentlyServing?.token_number,
+        peopleAhead: myIndex !== -1 ? myIndex : 0,
+    };
+};
+
 
 export default function AppointmentTrackerPage() {
-  const { token } = useParams()
-  const navigate = useNavigate()
+    const { bookingId } = useParams();
+    const [liveData, setLiveData] = useState({ position: null, currentlyServingToken: null, peopleAhead: 0 });
+    
+    const { data: booking, isLoading, isError, refetch: refetchBooking } = useQuery({
+        queryKey: ['booking-tracker', bookingId],
+        queryFn: () => fetchBookingDetails(bookingId),
+        enabled: !!bookingId,
+    });
 
-  const { data: appt, isLoading } = useQuery({
-    queryKey: ['appt-tracker', token],
-    queryFn: () =>
-      fetch(`${import.meta.env.VITE_API_URL}/appointments/track/${token}`)
-        .then(r => r.json()),
-    refetchInterval: 30000
-  })
+    useEffect(() => {
+        if (!booking) return;
 
-  if (isLoading) return (
-    <div style={{ minHeight: '100vh', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-      <div style={{ textAlign: 'center', color: '#93c5fd' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🦷</div>
-        <p>Loading appointment...</p>
-      </div>
-    </div>
-  )
+        const updateQueueData = () => {
+            fetchQueuePosition(booking.doctor_id, booking.id).then(setLiveData);
+        };
 
-  if (!appt || appt.error) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
-        <p>Appointment not found</p>
-        <button onClick={() => navigate('/')} style={{ marginTop: 12, background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer' }}>Go Home</button>
-      </div>
-    </div>
-  )
+        updateQueueData(); // Initial fetch
 
-  const statusConfig = {
-    scheduled: { bg: '#eff6ff', color: '#1d4ed8', icon: '✅', text: 'Scheduled' },
-    checked_in: { bg: '#f0fdf4', color: '#15803d', icon: '🏥', text: 'Checked In' },
-    called: { bg: '#fefce8', color: '#ca8a04', icon: '📣', text: 'Your Turn!' },
-    in_progress: { bg: '#eef2ff', color: '#4338ca', icon: '👨‍⚕️', text: 'In Consultation' },
-    completed: { bg: '#f0fdf4', color: '#15803d', icon: '🎉', text: 'Completed' },
-    no_show: { bg: '#fef2f2', color: '#dc2626', icon: '🤷', text: 'No Show' },
-    skipped: { bg: '#f3f4f6', color: '#6b7280', icon: '⏭️', text: 'Skipped' },
-    cancelled: { bg: '#fef2f2', color: '#dc2626', icon: '❌', text: 'Cancelled' },
-  };
-  const statusInfo = statusConfig[appt.status] || statusConfig.scheduled;
+        const channel = supabase
+            .channel(`booking-updates-${bookingId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'bookings',
+                filter: `doctor_id=eq.${booking.doctor_id}`
+            },
+            (payload) => {
+                console.log('Change received!', payload);
+                // If this booking's status changed, refetch everything
+                if (payload.new.id === bookingId) {
+                    refetchBooking();
+                }
+                // In any case, update the queue position
+                updateQueueData();
+            })
+            .subscribe();
 
-  const appointmentDate = new Date(appt.slot_time).toLocaleDateString('en-IN', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
-  
-  const estimatedTime = new Date(appt.eta).toLocaleTimeString('en-IN', {
-    hour: '2-digit', minute: '2-digit'
-  });
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [booking, bookingId, refetchBooking]);
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif' }}>
+    if (isLoading) return <div className="tracker-loading">Loading your appointment status...</div>;
+    if (isError) return <div className="tracker-error">Could not find your appointment. Please check the link.</div>;
 
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '32px 20px 24px', color: 'white', textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 8 }}>🦷</div>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>Appointment Details</h1>
-        <p style={{ fontSize: 13, color: '#bfdbfe', margin: 0 }}>{appt.clinicName}</p>
-      </div>
+    const avgTime = booking.doctors.avg_consultation_time_minutes || 10;
+    const etaMinutes = liveData?.position ? (liveData.position * avgTime) : 0;
 
-      <div style={{ padding: '16px 16px 80px' }}>
+    const statusInfo = {
+        scheduled: { text: "You're scheduled. Please check in at the clinic.", color: 'blue', Icon: Clock },
+        checked_in: { text: "You're in the queue!", color: 'orange', Icon: Users },
+        called: { text: "It's your turn! Please proceed to the doctor's room.", color: 'green', Icon: User },
+        in_progress: { text: "You are currently with the doctor.", color: 'purple', Icon: User },
+        completed: { text: "Your consultation is complete.", color: 'gray', Icon: CheckCircle },
+        skipped: { text: "You were skipped. Please contact reception.", color: 'red', Icon: AlertTriangle },
+        no_show: { text: "You missed your appointment.", color: 'red', Icon: XCircle },
+    }[booking.status] || { text: 'Status unknown', color: 'gray', Icon: AlertTriangle };
 
-        {/* Status badge */}
-        <div style={{ background: statusInfo.bg, border: `1px solid ${statusInfo.color}30`, borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 20 }}>{statusInfo.icon}</span>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: statusInfo.color, margin: '0 0 2px' }}>{statusInfo.text}</p>
-            <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
-              {appt.status === 'scheduled' ? `Your token is #${appt.token_number}. Estimated time is ~${estimatedTime}.` :
-               appt.status === 'checked_in' ? `You are in the queue. ${appt.tokens_ahead} patients are ahead of you.` :
-               appt.status === 'called' ? 'Please proceed to the doctor\'s room.' :
-               appt.status === 'in_progress' ? 'Consultation is currently ongoing.' :
-               appt.status === 'completed' ? 'Consultation finished.' :
-               'This appointment was cancelled or missed.'}
-            </p>
-          </div>
-        </div>
 
-        {/* Appointment card */}
-        <div style={{ background: 'white', borderRadius: 16, padding: 18, border: '1px solid #e2e8f0', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 14px' }}>Appointment Info</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              ['📅 Date', appointmentDate],
-              ['⏰ Estimated Time', `~${estimatedTime}`],
-              ['#️⃣ Token', appt.token_number],
-              ['👨‍⚕️ Doctor', appt.doctor.name],
-              ['👤 Patient', appt.patient.name],
-              ['🏥 Clinic', appt.clinic.name],
-              ['📍 Address', appt.clinic.address],
-              ['📞 Clinic Phone', appt.clinic.phone],
-            ].filter(([_, v]) => v).map(([label, value]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 10, borderBottom: '1px solid #f8fafc' }}>
-                <span style={{ fontSize: 13, color: '#64748b', minWidth: 120 }}>{label}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', textAlign: 'right', flex: 1 }}>{value}</span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>💰 Consultation Fee</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#2563eb' }}>₹{appt.doctor.consultation_fee}</span>
+    return (
+        <div className="tracker-shell">
+            <header className="tracker-header">
+                <h1>{booking.clinics.name}</h1>
+                <p>Live Appointment Status</p>
+            </header>
+
+            <div className="tracker-body">
+                <div className={`tracker-status-banner status-${statusInfo.color}`}>
+                    <statusInfo.Icon />
+                    <span>{statusInfo.text}</span>
+                </div>
+
+                <div className="tracker-grid">
+                    <div className="tracker-card main">
+                        <div className="tracker-card-icon"><User /></div>
+                        <div className="tracker-card-label">Your Position</div>
+                        <div className="tracker-card-value large">
+                            {liveData?.position ? `#${liveData.position}` : 'N/A'}
+                        </div>
+                        <div className="tracker-card-subtext">in the queue for Dr. {booking.doctors.name}</div>
+                    </div>
+
+                    <div className="tracker-card">
+                        <div className="tracker-card-icon"><Clock /></div>
+                        <div className="tracker-card-label">Estimated Wait</div>
+                        <div className="tracker-card-value">~{etaMinutes} min</div>
+                    </div>
+
+                    <div className="tracker-card">
+                        <div className="tracker-card-icon"><TrendingUp /></div>
+                        <div className="tracker-card-label">Now Serving</div>
+                        <div className="tracker-card-value token">
+                            {liveData?.currentlyServingToken || '...'}
+                        </div>
+                    </div>
+
+                    <div className="tracker-card">
+                        <div className="tracker-card-icon"><Users /></div>
+                        <div className="tracker-card-label">People Ahead</div>
+                        <div className="tracker-card-value">
+                            {liveData?.peopleAhead || 0}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="tracker-footer">
+                    <p>This page updates automatically. Last update: {new Date().toLocaleTimeString()}</p>
+                </div>
             </div>
-          </div>
         </div>
-
-        {/* Add to Calendar */}
-        {appt?.status === 'confirmed' && (
-          <div style={{ marginBottom: 16 }}>
-            <AddToCalendar appointment={{
-              clinicName: appt.clinicName,
-              doctorName: appt.doctorName,
-              date: appt.date,
-              slotTime: appt.time,
-              clinicAddress: appt.clinicAddress,
-              consultationFee: appt.consultationFee,
-              trackerToken: token
-            }} />
-          </div>
-        )}
-
-        {/* Reminder tips */}
-        {appt.status === 'confirmed' && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: '0 0 8px' }}>📋 Before your appointment</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#166534' }}>
-              <p style={{ margin: 0 }}>✓ Arrive 5 minutes before your slot time</p>
-              <p style={{ margin: 0 }}>✓ Bring any previous dental records or X-rays</p>
-              <p style={{ margin: 0 }}>✓ Fee of ₹{appt.consultationFee} to be paid at clinic</p>
-              <p style={{ margin: 0 }}>✓ You'll get a WhatsApp reminder 1 hour before</p>
-            </div>
-          </div>
-        )}
-
-      </div>
-
-      {/* Bottom actions */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10 }}>
-        <button onClick={() => navigate('/')}
-          style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-          Book Another
-        </button>
-        {appt.clinicPhone && (
-          <a href={`tel:${appt.clinicPhone}`}
-            style={{ flex: 1, background: '#2563eb', color: 'white', border: 'none', borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            📞 Call Clinic
-          </a>
-        )}
-      </div>
-    </div>
-  )
+    );
 }
+

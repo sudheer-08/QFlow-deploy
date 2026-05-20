@@ -171,6 +171,13 @@ export default function DoctorPage() {
 
   return (
     <div className="dr-shell">
+      {briefModal && (
+        <PatientBriefModal
+          patientId={briefModal.patientId}
+          onClose={() => setBriefModal(null)}
+        />
+      )}
+
       {/* ─── Header ─── */}
       <header className="dr-header">
         <div className="dr-header-left">
@@ -309,35 +316,22 @@ export default function DoctorPage() {
                 </div>
               ) : (
                 <div className="dr-queue-list">
-                  {waiting.map((entry, idx) => {
-                    const cfg = priorityCfg[entry.priority] || priorityCfg.routine
-                    return (
-                      <div key={entry.id} className={`dr-queue-item ${cfg.cls}`}>
-                        <div className="dr-queue-left">
-                          <span className="dr-queue-num">#{idx + 1}</span>
-                          <span className="dr-queue-token">{entry.token_number}</span>
-                          <div className="dr-queue-info">
-                            <div className="dr-queue-name">{entry.users?.name}</div>
-                            <div className="dr-queue-meta">
-                              <span className={`dr-mini-badge ${cfg.mini}`}>{cfg.label}</span>
-                              {entry.registration_type === 'self_registered' && (
-                                <span className="dr-mini-badge dr-mini-remote">📱 Remote</span>
-                              )}
-                              {entry.arrival_status === 'arrived' && (
-                                <span className="dr-mini-badge dr-mini-arrived">✅ Here</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleViewBrief(entry)}
-                          className="dr-call-btn"
-                        >
-                          <Eye size={12} /> Brief & Call
-                        </button>
+                  {waiting.map((entry, i) => (
+                    <div key={entry.id} className="dr-queue-item" onClick={() => handleViewBrief(entry)}>
+                      <div className="dr-queue-pos">{i + 1}</div>
+                      <div className={`dr-queue-mini-priority ${priorityCfg[entry.priority]?.mini || 'dr-mini-routine'}`} />
+                      <div className="dr-queue-token">{entry.token_number}</div>
+                      <div className="dr-queue-name">{entry.users?.name}</div>
+                      <div className="dr-queue-time">
+                        {formatTime12(entry.appointment_time?.slice(11, 16)).time}
+                        <span className="dr-queue-ampm">{formatTime12(entry.appointment_time?.slice(11, 16)).ampm}</span>
                       </div>
-                    )
-                  })}
+                      <div className="dr-queue-status">{entry.status}</div>
+                    </div>
+                  ))}
+                  {waiting.length === 0 && (
+                    <div className="dr-queue-empty">No patients in the queue.</div>
+                  )}
                 </div>
               )}
             </div>
@@ -485,13 +479,7 @@ export default function DoctorPage() {
       {briefModal && (
         <PatientBriefModal
           patientId={briefModal.patientId}
-          queueEntryId={briefModal.queueEntryId}
-          patientName={briefModal.patientName}
           onClose={() => setBriefModal(null)}
-          onCall={() => {
-            callMutation.mutate(briefModal.entryId)
-            setBriefModal(null)
-          }}
         />
       )}
 

@@ -11,6 +11,21 @@ export default defineConfig({
       host: 'localhost',
       port: 5173,
       protocol: 'ws'
+    },
+    // Proxy all /api requests to the Express backend.
+    // This eliminates ERR_CONNECTION_REFUSED when the backend port changes,
+    // and removes the need to hardcode http://localhost:5000 in the frontend.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
+      },
+      '/socket.io': {
+        target: 'http://localhost:5000',
+        ws: true,
+        changeOrigin: true
+      }
     }
   },
   build: {

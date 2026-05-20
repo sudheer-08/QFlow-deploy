@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import supabase from '../services/supabase';
+import { supabase } from '../services/supabase';
 import api from '../services/api'; // Assuming you have an api service wrapper
 
 /**

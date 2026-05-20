@@ -1,5 +1,5 @@
-import { supabase } from '../models/supabase.js';
-import { logger } from '../utils/logging.js';
+const supabase = require('../models/supabase');
+const { logger } = require('../utils/logging');
 
 const CAP_SAMPLE_COUNT = 50;
 
@@ -11,7 +11,7 @@ const CAP_SAMPLE_COUNT = 50;
  * @param {string} visitType - The type of visit (e.g., 'new', 'followup').
  * @param {number} actualDurationSeconds - The duration of the completed consultation in seconds.
  */
-export async function updateDoctorStats(doctorId, visitType, actualDurationSeconds) {
+async function updateDoctorStats(doctorId, visitType, actualDurationSeconds) {
   if (!doctorId || !visitType || actualDurationSeconds == null) {
     logger.warn('updateDoctorStats called with invalid arguments.', { doctorId, visitType, actualDurationSeconds });
     return;
@@ -74,3 +74,5 @@ export async function updateDoctorStats(doctorId, visitType, actualDurationSecon
     });
   }
 }
+
+module.exports = { updateDoctorStats };
